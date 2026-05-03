@@ -8,6 +8,7 @@ Lorem ipsum dolor sit amet consectetur adipiscing elit
 ## Future Work 
 Lorem ipsum dolor sit amet consectetur adipiscing elit
 ## [may not apply] If & how you've used coding assistants or gen AI tools to help with this assignment 
-Please be honest.
+
+Made a CLAUDE.md and CLAUDE.local.md
 
 Lorem ipsum dolor sit amet consectetur adipiscing elit
