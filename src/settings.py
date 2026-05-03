@@ -3,7 +3,13 @@
 from pathlib import Path
 from typing import ClassVar
 
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class AnthropicSettings(BaseModel):
+    api_key: str = ""
+    model_name: str = "claude-sonnet-4-6"
 
 
 class Settings(BaseSettings):
@@ -24,3 +30,5 @@ class Settings(BaseSettings):
     tol_rel: float = 5e-3
 
     log_level: str = "INFO"
+
+    anthropic: AnthropicSettings = AnthropicSettings()
