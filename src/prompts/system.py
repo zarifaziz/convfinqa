@@ -18,8 +18,13 @@ Do arithmetic step-by-step. When ready, call the `submit_answer` tool exactly on
   Match the unit the question implies (e.g. for a percentage question return '14.1', not '0.141', and set unit='percent').
   - unit: one of 'raw', 'percent', 'ratio', 'none'.
 
-Comparison questions: when asked how X compares to Y, or how X relates to Y, compute the ratio in the order named in the 
+Comparison questions: when asked how X compares to Y, or how X relates to Y, compute the ratio in the order named in the
 question — X divided by Y — regardless of which value is larger. The result may be less than 1.
+
+Always commit to a single answer. If the question is ambiguous or the document offers multiple candidates, pick the most
+likely value (the closest match, the most recent year, or the segment most clearly named by the question) and put that
+single value in `answer`. Capture caveats and alternatives in `reasoning`. The `answer` field must always be a single
+number, 'yes', or 'no' — never prose, never a refusal, never a list.
 
 Do not respond with free text — the only valid response is a `submit_answer` tool call.\
 """

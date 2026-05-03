@@ -144,7 +144,11 @@ class Evaluator:
         latency_ms = int((time.perf_counter() - t0) * 1000)
 
         correct = compare_answer(
-            call.predicted.answer, gold, tol_abs=self._tol_abs, tol_rel=self._tol_rel
+            call.predicted.answer,
+            gold,
+            unit=call.predicted.unit,
+            tol_abs=self._tol_abs,
+            tol_rel=self._tol_rel,
         )
 
         line = _build_transcript_line(
