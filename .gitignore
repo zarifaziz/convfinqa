@@ -19,3 +19,4 @@ __pycache__/
 *.local.md
 .claude/
 uv.lock
+plans

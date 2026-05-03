@@ -56,10 +56,9 @@ Please make a submission branch & make a PR to main. The PR should contain:
 - A solution to the main task
 - A report summarising your findings. We have sketched out a template for you in `REPORT.md`, but you can use any other setup (like LaTeX) if you prefer.
 - Please send a link to the PR to [recruitment@tomoro.ai](mailto:recruitment@tomoro.ai) with the subject `submission: <your name>`.
-  
+
 NOTE: Please DO NOT merge any of your submission to main, all of your work should be on your branch `submission`. 
 
 
 **Please let us know if you used any AI tools to help generate code for your assignment.**
 Using AI-powered IDEs or coding assistants is acceptable, as these are commonly used in real-world environments, and this assignment is intended to reflect that. If you’ve used AI tools to help you write code or your report, or any other part of your process, we ask that you disclose how and where you used them. This isn’t to catch you out. It’s an opportunity to show that you understand how to use these tools effectively and responsibly as part of your workflow.
-
