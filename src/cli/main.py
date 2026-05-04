@@ -45,12 +45,12 @@ def eval_(
     seed: Optional[int] = typer.Option(None, "--seed", help="RNG seed for sampling. If omitted, a fresh seed is generated and logged."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Print every per-turn row in the summary table."),
     concurrency: int = typer.Option(
-        5,
+        15,
         "--concurrency",
         help=(
             "Number of records evaluated in parallel. 1 disables threading. "
-            "5 keeps us under Anthropic's 450k input-tok/min rate limit at "
-            "~3k tok/call avg; bump only if you confirm headroom."
+            "15 sits at ~50% of Anthropic's 450k input-tok/min ceiling at "
+            "~4k tok/call avg, leaving retry headroom."
         ),
     ),
 ) -> None:

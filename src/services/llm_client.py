@@ -36,10 +36,10 @@ class AnthropicClient:
     _MAX_TOKENS = 4096
 
     def __init__(self, settings: AnthropicSettings) -> None:
-        # `max_retries=4`: SDK default is 2; concurrency=5 + parallel records
-        # bumps occasional 429s as we approach the input-tokens-per-minute cap.
-        # Backoff is exponential, so the worst-case wall hit is ~30s on a hot
-        # window, far cheaper than crashing the whole eval.
+        # `max_retries=4`: SDK default is 2; at concurrency=15 we sit around
+        # half the input-TPM cap, so transient 429s on hot windows are
+        # expected. Backoff is exponential — worst-case wall hit ~30s, far
+        # cheaper than crashing the whole eval.
         self._client = Anthropic(api_key=settings.api_key, max_retries=4)
         self._model_name = settings.model_name
         self._thinking_enabled = settings.thinking_enabled
