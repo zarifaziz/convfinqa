@@ -10,6 +10,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AnthropicSettings(BaseModel):
     api_key: str = ""
     model_name: str = "claude-sonnet-4-6"
+    # Sonnet 4.6 list price (USD per million tokens) — used for cost
+    # reporting in eval summaries. Override via env if pricing changes.
+    price_per_mtok_input: float = 3.0
+    price_per_mtok_output: float = 15.0
 
 
 class Settings(BaseSettings):
