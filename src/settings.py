@@ -15,6 +15,12 @@ class AnthropicSettings(BaseModel):
     price_per_mtok_input: float = 3.0
     price_per_mtok_output: float = 15.0
 
+    # Extended thinking: off by default. When enabled the client switches
+    # tool_choice from "tool" to "any" (forced single-tool isn't allowed
+    # alongside thinking) and request max_tokens grows to budget + output cap.
+    thinking_enabled: bool = False
+    thinking_budget_tokens: int = 2048
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
