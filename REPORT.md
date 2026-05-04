@@ -37,7 +37,7 @@ Append-only. Dev is the held-out measurement set; the table below records every 
 |---|---|---|---|---|---|---|---|
 | v0 | `prompt-v0` | 1002385739 | 83.5% (1244/1490) | 73.6% (310/421) | $19.04 | 72 min | Baseline, full dev (421 records). Type I 85.7% / Type II 78.1%. `has_duplicate_columns` 67.2% (n=64) — flagged. |
 | v1 | `prompt-v1` | 1002385739 | 82.7% (1229/1486) | 72.6% (305/420) | $20.88 | 78 min | Phase 2.5 v1: AAPL/RE few-shot for sign convention. **−0.8pt vs v0** — train +0.5pt did not transfer. 420/421 records (`Single_STT/2011/page_83.pdf-2` hung on SDK call, killed; bound impact <0.5pt). |
-| v2 | `prompt-v2` | 1002385739 | _pending_ | _pending_ | _pending_ | _pending_ | Optional second iteration cycle |
+| v2 | `prompt-v2` | 1002385739 | _aborted_ | _aborted_ | ~$10 sunk | n/a | Enabled extended thinking (`thinking_enabled=True`, budget=2048). Two harness failures in succession: (i) 429 input-TPM rate-limit at `concurrency=15` — thinking widens the open-window per request beyond what the v0/v1 default tolerated; (ii) on retry at `concurrency=8`, the API forces `tool_choice="auto"` whenever thinking is on (forced "tool"/"any" both rejected), and the model skipped the tool on a multi-turn record (returned a text answer referencing the prior turn instead of a `submit_answer` block). Partial n=59 records before the second crash: **81.1% per-turn (172/212), trending −2.4pt vs v0** — within the n=212 95% CI but directionally consistent with v1's −0.8pt. Experiment aborted; reverted to thinking-off. |
 
 ## Intermediary findings (n=50 dev sample, seed=1002385739)
 
@@ -97,6 +97,7 @@ Patterns B, D, F are not prompt-recoverable — they reflect annotator inconsist
 - **n=50 numbers come with ±~10pt CIs at 95% for rates near 0.8.** The full-dev run is the headline; n=50 was a smoke check, not the report number.
 - **Cluster 2 is a dataset/cleaning artifact** that the model cannot recover from inputs alone. Reporting raw accuracy charges those records against the model unfairly. Phase 4 will surface them as a separate breakdown axis.
 - **No prompt caching.** Mean input tokens grow ~50% from t0 to t5; a stable system block would be cacheable. Not implemented in v1.
+- **Extended thinking is incompatible with the current forced-tool harness.** v2 enabled `thinking={budget: 2048}`, which the API rejects alongside `tool_choice: "tool"` *and* `tool_choice: "any"` — only `"auto"` is permitted. Under `"auto"`, the model is free to skip `submit_answer` and reply in free text, which it did on a multi-turn replay (it judged the answer already given in a prior turn). Making thinking measurable would require either a retry-on-no-tool path in the client or a structural prompt change to make the tool call unavoidable from `"auto"`. Out of scope for this submission.
 
 ## Future work
 

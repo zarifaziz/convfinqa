@@ -16,7 +16,7 @@ class AnthropicSettings(BaseModel):
     price_per_mtok_output: float = 15.0
 
     # Extended thinking
-    thinking_enabled: bool = True
+    thinking_enabled: bool = False
     thinking_budget_tokens: int = 2048
 
 
