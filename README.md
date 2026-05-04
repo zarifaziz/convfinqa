@@ -1,64 +1,107 @@
-# ConvFinQA Assignment
+# ConvFinQA
 
+An LLM-driven pipeline that answers conversational questions over financial documents from the [ConvFinQA](https://github.com/czyssrs/ConvFinQA) dataset.
 
-Thank you for taking the time to do this assignment! Please see the [main Notion page](https://tomoroai.notion.site/Technical-Assignment-1fa0de3387ea80debb36cda4ae41e93d) for the full instructions. 
+## What it does
 
+1. **Load** — parse cleaned ConvFinQA records (text paragraphs + tables + multi-turn Q&A).
+2. **Answer** — render each record into a prompt and call Claude with a tool-use loop; the model returns a typed numeric or boolean answer via the `submit_answer` tool.
+3. **Evaluate** — score predictions against gold answers with absolute/relative tolerance, then break results down by turn index, question type, gold format, and conditional accuracy (P(correct | previous correct)).
 
-We have cleaned up the dataset; please see `dataset.md` for more information. We recommend you use this version of the data for the assignment, as it will save you a lot of time. If you have any questions, please don't hesitate to ask your point of contact. 
+Outputs go to a timestamped `runs/<UTC>/` directory: per-turn predictions, summary metrics, and the full transcript of every model call for later error analysis.
 
+## Tech Stack
 
-Good luck! 
+- **Python 3.12** with [uv](https://docs.astral.sh/uv/) for dependency management
+- **Anthropic SDK** (Claude) for LLM calls, with tool use for structured answer extraction
+- **Pydantic** / **pydantic-settings** for typed domain models and config
+- **Typer** for the CLI, **Rich** for terminal output, **Loguru** for structured logging
+- **Pytest** for tests, **Ruff** + **Mypy** for lint/type checks
 
-## Get started
+## Getting Started
+
 ### Prerequisites
 - Python 3.12+
-- [UV environment manager](https://docs.astral.sh/uv/getting-started/installation/)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- An Anthropic API key
 
 ### Setup
-1. Clone this repository
-2. Use the UV environment manager to install dependencies:
 
 ```bash
 # install uv
 brew install uv
 
-# set up env
+# install dependencies
 uv sync
 
-# add python package to env
-uv add <package_name>
+# configure environment
+cp .env.example .env
+# add ANTHROPIC_API_KEY=...
 ```
 
-### [optional] Use CLI to chat
+### Run an evaluation
 
-We have created a boilerplate cli app using [typer](https://typer.tiangolo.com/) (sister of fastapi, built on click) so there is a simple chat interface, which you can extend to meet your needs if you so choose.  By default the chat responds with a standard message as shown below.
-
-
-We've installed the app as a script, so you can run it with:
-```bash 
-uv run main
-```
-or you can use the longer form:
 ```bash
-uv run python src/main.py
+# score a 50-record sample on the train split
+uv run main eval --n 50 --split train
+
+# score a single record
+uv run main eval --record-id <record_id>
+
+# full dev split (held-out measurement)
+uv run main eval --split dev
 ```
 
-How to *chat*:
+Each run writes to `runs/<UTC-timestamp>/` with `predictions.jsonl`, `summary.json`, and per-record transcripts.
+
+### Inspect failures
+
 ```bash
-uv run main chat <record_id> 
+uv run main dump-failures runs/<run-dir>
 ```
-[![Chat](figures/chat_example.png)](figures/chat.png)  
 
-## Submission 
-Please make a submission branch & make a PR to main. The PR should contain: 
+Produces a markdown file of every miss, with the question, gold answer, model answer, and the tool-call trace — the primary input to manual error analysis.
 
+### Run tests
 
-- A solution to the main task
-- A report summarising your findings. We have sketched out a template for you in `REPORT.md`, but you can use any other setup (like LaTeX) if you prefer.
-- Please send a link to the PR to [recruitment@tomoro.ai](mailto:recruitment@tomoro.ai) with the subject `submission: <your name>`.
+```bash
+uv run pytest
+```
 
-NOTE: Please DO NOT merge any of your submission to main, all of your work should be on your branch `submission`. 
+## Project Structure
 
+```
+zarifaziz/
+├── src/
+│   ├── domain/           # Pydantic models: Record, Conversation, Answer
+│   ├── services/         # Pipeline logic: Answerer, Evaluator, LLM client
+│   ├── repository/       # Dataset loaders (JSON → domain objects)
+│   ├── prompts/          # System prompt + record→prompt rendering
+│   ├── tools/            # Anthropic tool-use schemas (submit_answer)
+│   ├── eval/             # Metric and breakdown functions
+│   ├── cli/              # Typer entrypoints (eval, dump-failures)
+│   ├── settings.py       # pydantic-settings config (.env)
+│   └── logger.py         # Loguru + run-dir scaffolding
+├── tests/                # Pytest suite (parsers, metrics, tool wiring)
+├── data/                 # Cleaned ConvFinQA dataset
+├── runs/                 # Timestamped evaluation outputs
+├── docs/                 # Design notes (model selection, decisions)
+├── plans/                # Phase-by-phase build plan
+├── REPORT.md             # Findings, error analysis, limitations
+└── pyproject.toml
+```
 
-**Please let us know if you used any AI tools to help generate code for your assignment.**
-Using AI-powered IDEs or coding assistants is acceptable, as these are commonly used in real-world environments, and this assignment is intended to reflect that. If you’ve used AI tools to help you write code or your report, or any other part of your process, we ask that you disclose how and where you used them. This isn’t to catch you out. It’s an opportunity to show that you understand how to use these tools effectively and responsibly as part of your workflow.
+## Configuration
+
+Settings are read from `.env` via [`src/settings.py`](src/settings.py). Key variables:
+
+| Variable | Description |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Required. Anthropic API key. |
+| `ANTHROPIC__MODEL` | Model id (e.g. `claude-sonnet-4-5`). |
+| `ANTHROPIC__PRICE_PER_MTOK_INPUT` / `_OUTPUT` | Used to estimate run cost. |
+| `TOL_ABS` / `TOL_REL` | Numeric comparison tolerances. |
+
+## Report
+
+See [`REPORT.md`](REPORT.md) for the full write-up: approach, evaluation methodology, error taxonomy from manual analysis, and limitations.
