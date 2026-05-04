@@ -6,12 +6,15 @@ Two sibling files per run:
   - `transcripts.md` — human-readable, multi-line markdown sections per
     call, real newlines preserved. Skips `raw_response` to keep it skimmable.
 
-The orchestrator calls both; `Answerer` stays a pure transformer.
+Wire-shape rendering of the messages list lives in `anthropic`; this
+module is the orchestration of section ordering, not block-type knowledge.
 """
 
 import json
 from pathlib import Path
 from typing import Any
+
+from src.services import anthropic
 
 
 def write_transcript(path: Path, line: dict[str, Any]) -> None:
@@ -26,20 +29,20 @@ def write_transcript_md(path: Path, line: dict[str, Any]) -> None:
     parsed = line.get("parsed") or {}
     tool_call = line.get("tool_call") or {}
     messages = line.get("messages") or []
-    user_message = next((m["content"] for m in messages if m.get("role") == "user"), "")
 
+    # Section order mirrors what the model actually receives on the wire:
+    # `system` first, then the `messages` list, then its tool_use response.
     section = (
         f"# {line.get('record_id')} (turn {line.get('turn_idx')})\n\n"
         f"**correct:** {line.get('correct')} &nbsp;&nbsp; "
         f"**latency:** {line.get('latency_ms')} ms &nbsp;&nbsp; "
-        f"**gold:** `{line.get('gold')!r}`\n\n"
-        f"## Question\n\n"
-        f"{line.get('question')}\n\n"
-        f"## User message\n\n"
-        f"{user_message}\n\n"
+        f"**gold:** `{line.get('gold')!r}` &nbsp;&nbsp; "
+        f"**question:** {line.get('question')}\n\n"
         f"## System prompt\n\n"
         f"```\n{line.get('system_prompt', '')}\n```\n\n"
-        f"## Tool call ({tool_call.get('name')!r})\n\n"
+        f"## Messages (prior turns + current question)\n\n"
+        f"{anthropic.render_messages_md(messages)}\n"
+        f"## Response — tool call ({tool_call.get('name')!r})\n\n"
         f"- **reasoning:** {parsed.get('reasoning')}\n"
         f"- **calculation:** `{parsed.get('calculation')}`\n"
         f"- **answer:** `{parsed.get('answer')}`\n"

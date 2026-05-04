@@ -2,9 +2,6 @@
 
 Thin entry point: parse args, build services, call `Evaluator.run`, print
 summary. All orchestration lives in `src/services/evaluator.py`.
-
-Phase 2 is single-turn only (turn 0 of each record); multi-turn replay
-lands in Phase 3.
 """
 
 from typing import Optional
@@ -36,8 +33,9 @@ def eval(
     record_id: Optional[str] = typer.Option(None, "--record-id", help="Run a single record by id."),
     split: str = typer.Option("dev", "--split", help="Dataset split to evaluate on."),
     seed: Optional[int] = typer.Option(None, "--seed", help="RNG seed for sampling. If omitted, a fresh seed is generated and logged."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Print every per-turn row in the summary table."),
 ) -> None:
-    """Score the first-turn predictions over `split`."""
+    """Score the model's predictions over `split`, multi-turn."""
     settings = Settings()
     run_dir = init_run(settings)
     logger.info(f"run dir: {run_dir}")
@@ -47,34 +45,74 @@ def eval(
         answerer=Answerer(llm=AnthropicClient(settings.anthropic)),
         tol_abs=settings.tol_abs,
         tol_rel=settings.tol_rel,
+        price_per_mtok_input=settings.anthropic.price_per_mtok_input,
+        price_per_mtok_output=settings.anthropic.price_per_mtok_output,
     )
     summary = evaluator.run(
         split=split, run_dir=run_dir, n=n, record_id=record_id, seed=seed
     )
-    _print_summary_table(summary)
+    _print_summary(summary, verbose=verbose)
 
 
-def _print_summary_table(summary: EvalSummary) -> None:
+def _print_summary(summary: EvalSummary, *, verbose: bool) -> None:
     console = Console()
-    table = Table(title=f"first-turn eval on {summary.split!r}")
-    table.add_column("record_id", style="cyan", no_wrap=False)
-    table.add_column("predicted", style="white")
-    table.add_column("gold", style="white")
-    table.add_column("correct", style="green")
-    table.add_column("ms", style="dim", justify="right")
-    for row in summary.rows:
-        table.add_row(
-            row.record_id,
-            f"{row.predicted_answer} ({row.predicted_unit})",
-            str(row.gold),
-            "yes" if row.correct else "no",
-            str(row.latency_ms),
-        )
-    console.print(table)
+
+    if verbose:
+        table = Table(title=f"per-turn eval on {summary.split!r}")
+        table.add_column("record_id", style="cyan", no_wrap=False)
+        table.add_column("turn", style="dim", justify="right")
+        table.add_column("predicted", style="white")
+        table.add_column("gold", style="white")
+        table.add_column("correct", style="green")
+        for row in summary.rows:
+            table.add_row(
+                row.record_id,
+                str(row.turn_idx),
+                f"{row.predicted_answer} ({row.predicted_unit})",
+                str(row.gold),
+                "yes" if row.correct else "no",
+            )
+        console.print(table)
+
+    b = summary.breakdown
+    pt = b["per_turn_accuracy"]
+    pc = b["per_conversation_accuracy"]
     rich_print(
-        f"[bold]accuracy:[/bold] {summary.n_correct}/{summary.n_records} "
-        f"= {summary.accuracy:.1%}"
+        f"[bold]per-turn:[/bold] {pt['correct']}/{pt['n']} = {pt['accuracy']:.1%}    "
+        f"[bold]per-conversation:[/bold] {pc['correct']}/{pc['n']} = {pc['accuracy']:.1%}"
     )
+    rich_print(f"[bold]by turn idx:[/bold] {_fmt_rate_curve(b['per_turn_idx_accuracy'])}")
+    rich_print(
+        f"[bold]conditional P(correct|prev correct):[/bold] "
+        f"{_fmt_rate_curve(b['conditional_accuracy'])}"
+    )
+
+    qt = b["accuracy_by_question_type"]
+    fmt = b["accuracy_by_gold_format"]
+    rich_print(
+        f"[bold]by type:[/bold] type_i={_fmt_rate(qt['type_i'])}  "
+        f"type_ii={_fmt_rate(qt['type_ii'])}    "
+        f"[bold]by gold:[/bold] numeric={_fmt_rate(fmt['numeric'])}  "
+        f"boolean={_fmt_rate(fmt['boolean'])}"
+    )
+
+    cost = b["cost"]
+    rich_print(
+        f"[bold]cost:[/bold] {cost['tokens_in_total']:,} in + {cost['tokens_out_total']:,} out tokens "
+        f"≈ ${cost['usd_estimate']:.4f}    "
+        f"[bold]wall:[/bold] {cost['total_seconds']:.1f}s"
+    )
+
+
+def _fmt_rate(rate: dict) -> str:
+    acc = rate["accuracy"]
+    if acc is None:
+        return f"n/a (n={rate['n']})"
+    return f"{acc:.1%} (n={rate['n']})"
+
+
+def _fmt_rate_curve(curve: dict[str, dict]) -> str:
+    return "  ".join(f"t{idx}={_fmt_rate(rate)}" for idx, rate in curve.items())
 
 
 if __name__ == "__main__":

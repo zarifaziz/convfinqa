@@ -1,19 +1,19 @@
 """Evaluator service.
 
-Owns the load → answer → score → write loop. Depends on the
+Owns the load -> answer -> score -> write loop. Depends on the
 `DatasetRepository` Protocol (not the concrete JSON repo) and an `Answerer`,
 so it's testable with a fake repo + fake LLM client.
 
 Writes three sibling files in the run dir:
-  - `transcripts.jsonl` — one line per LLM call, full system_prompt /
-    messages / tool_call / parsed for replay.
+  - `transcripts.jsonl` / `transcripts.md` — one entry per LLM call, full
+    audit trail for replay.
   - `predictions.jsonl` — one line per turn, lightweight grading record.
-  - `summary.json` — overall accuracy.
+  - `summary.json` — overall metrics + breakdowns (no per-row detail; that
+    lives in `predictions.jsonl`).
 """
 
 import json
 import random
-import time
 from pathlib import Path
 from typing import Any
 
@@ -21,8 +21,10 @@ from loguru import logger
 from pydantic import BaseModel
 
 from src.domain import ConvFinQARecord
+from src.eval.breakdowns import summarize
 from src.eval.metrics import compare_answer
 from src.repository.convfinqa import DatasetRepository
+from src.services import anthropic
 from src.services.answerer import Answerer, AnswerCall
 from src.services.transcripts import write_transcript, write_transcript_md
 
@@ -33,18 +35,30 @@ class EvalRow(BaseModel):
     question: str
     predicted_answer: str
     predicted_unit: str
+    predicted_calculation: str
+    predicted_reasoning: str
     gold: float | str
     correct: bool
     latency_ms: int
+    tokens_in: int
+    tokens_out: int
+    # Record-level features denormalized onto each row so breakdowns can
+    # slice without re-loading the dataset.
+    has_type2_question: bool
+    has_duplicate_columns: bool
+    has_non_numeric_values: bool
 
 
 class EvalSummary(BaseModel):
+    """Run output. `breakdown` is the full output of `summarize`; `rows` is
+    the per-turn detail (excluded when serialised to summary.json — that
+    detail lives in predictions.jsonl).
+    """
+
     split: str
-    n_records: int
-    n_correct: int
-    accuracy: float
     seed: int | None = None
     rows: list[EvalRow]
+    breakdown: dict[str, Any]
 
 
 class Evaluator:
@@ -54,11 +68,15 @@ class Evaluator:
         answerer: Answerer,
         tol_abs: float,
         tol_rel: float,
+        price_per_mtok_input: float = 0.0,
+        price_per_mtok_output: float = 0.0,
     ) -> None:
         self._repo = repo
         self._answerer = answerer
         self._tol_abs = tol_abs
         self._tol_rel = tol_rel
+        self._price_in = price_per_mtok_input
+        self._price_out = price_per_mtok_output
 
     def run(
         self,
@@ -80,28 +98,35 @@ class Evaluator:
         predictions_path = run_dir / "predictions.jsonl"
         summary_path = run_dir / "summary.json"
 
-        logger.info(f"evaluating {len(records)} record(s) on split={split!r} (turn 0 only)")
+        n_total_turns = sum(len(r.dialogue.conv_questions) for r in records)
+        logger.info(
+            f"evaluating {len(records)} record(s) "
+            f"({n_total_turns} turns total) on split={split!r}"
+        )
 
         rows: list[EvalRow] = []
         for idx, record in enumerate(records):
-            row = self._score_first_turn(record, transcripts_path, transcripts_md_path)
-            rows.append(row)
+            record_rows = self._score_conversation(
+                record, transcripts_path, transcripts_md_path
+            )
+            rows.extend(record_rows)
             with predictions_path.open("a", encoding="utf-8") as fh:
-                fh.write(row.model_dump_json() + "\n")
+                for row in record_rows:
+                    fh.write(row.model_dump_json() + "\n")
+
+            n_correct_in_record = sum(1 for r in record_rows if r.correct)
             logger.info(
                 f"[{idx + 1}/{len(records)}] {record.id} "
-                f"pred={row.predicted_answer!r} gold={row.gold!r} "
-                f"correct={row.correct} ({row.latency_ms} ms)"
+                f"turns={len(record_rows)} correct={n_correct_in_record}/{len(record_rows)}"
             )
 
-        n_correct = sum(1 for r in rows if r.correct)
+        breakdown = summarize(
+            rows,
+            price_per_mtok_input=self._price_in,
+            price_per_mtok_output=self._price_out,
+        )
         summary = EvalSummary(
-            split=split,
-            n_records=len(rows),
-            n_correct=n_correct,
-            accuracy=n_correct / len(rows) if rows else 0.0,
-            seed=effective_seed,
-            rows=rows,
+            split=split, seed=effective_seed, rows=rows, breakdown=breakdown
         )
         # `summary.json` excludes the per-row detail (that's in predictions.jsonl).
         summary_path.write_text(
@@ -130,49 +155,63 @@ class Evaluator:
             records = random.Random(seed).sample(records, n)
         return records
 
-    def _score_first_turn(
+    def _score_conversation(
         self,
         record: ConvFinQARecord,
         transcripts_path: Path,
         transcripts_md_path: Path,
-    ) -> EvalRow:
-        question = record.dialogue.conv_questions[0]
-        gold = record.dialogue.executed_answers[0]
+    ) -> list[EvalRow]:
+        calls = self._answerer.answer_conversation(record)[1]
 
-        t0 = time.perf_counter()
-        call = self._answerer.answer_single(record.doc, question)
-        latency_ms = int((time.perf_counter() - t0) * 1000)
+        rows: list[EvalRow] = []
+        for turn_idx, (call, question, gold) in enumerate(
+            zip(
+                calls,
+                record.dialogue.conv_questions,
+                record.dialogue.executed_answers,
+                strict=True,
+            )
+        ):
+            correct = compare_answer(
+                call.predicted.answer,
+                gold,
+                unit=call.predicted.unit,
+                tol_abs=self._tol_abs,
+                tol_rel=self._tol_rel,
+            )
 
-        correct = compare_answer(
-            call.predicted.answer,
-            gold,
-            unit=call.predicted.unit,
-            tol_abs=self._tol_abs,
-            tol_rel=self._tol_rel,
-        )
+            line = _build_transcript_line(
+                record_id=record.id,
+                turn_idx=turn_idx,
+                question=question,
+                call=call,
+                gold=gold,
+                correct=correct,
+                latency_ms=call.latency_ms,
+            )
+            write_transcript(transcripts_path, line)
+            write_transcript_md(transcripts_md_path, line)
 
-        line = _build_transcript_line(
-            record_id=record.id,
-            turn_idx=0,
-            question=question,
-            call=call,
-            gold=gold,
-            correct=correct,
-            latency_ms=latency_ms,
-        )
-        write_transcript(transcripts_path, line)
-        write_transcript_md(transcripts_md_path, line)
-
-        return EvalRow(
-            record_id=record.id,
-            turn_idx=0,
-            question=question,
-            predicted_answer=call.predicted.answer,
-            predicted_unit=call.predicted.unit,
-            gold=gold,
-            correct=correct,
-            latency_ms=latency_ms,
-        )
+            rows.append(
+                EvalRow(
+                    record_id=record.id,
+                    turn_idx=turn_idx,
+                    question=question,
+                    predicted_answer=call.predicted.answer,
+                    predicted_unit=call.predicted.unit,
+                    predicted_calculation=call.predicted.calculation,
+                    predicted_reasoning=call.predicted.reasoning,
+                    gold=gold,
+                    correct=correct,
+                    latency_ms=call.latency_ms,
+                    tokens_in=call.tokens_in,
+                    tokens_out=call.tokens_out,
+                    has_type2_question=record.features.has_type2_question,
+                    has_duplicate_columns=record.features.has_duplicate_columns,
+                    has_non_numeric_values=record.features.has_non_numeric_values,
+                )
+            )
+        return rows
 
 
 def _build_transcript_line(
@@ -188,7 +227,7 @@ def _build_transcript_line(
     """Self-contained replay record. Includes the full system prompt and
     raw response so a future debugger can re-run without the dataset.
     """
-    tool_call = _extract_tool_call(call.raw_response)
+    tool_call = anthropic.extract_tool_call(call.raw_response)
     return {
         "record_id": record_id,
         "turn_idx": turn_idx,
@@ -202,11 +241,3 @@ def _build_transcript_line(
         "latency_ms": latency_ms,
         "raw_response": call.raw_response,
     }
-
-
-def _extract_tool_call(raw_response: dict[str, Any]) -> dict[str, Any] | None:
-    """Pull the `tool_use` block out of an Anthropic response dump."""
-    for block in raw_response.get("content", []) or []:
-        if block.get("type") == "tool_use":
-            return {"name": block.get("name"), "input": block.get("input")}
-    return None
