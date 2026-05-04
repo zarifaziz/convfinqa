@@ -93,14 +93,7 @@ zarifaziz/
 
 ## Configuration
 
-Settings are read from `.env` via [`src/settings.py`](src/settings.py). Key variables:
-
-| Variable | Description |
-| --- | --- |
-| `ANTHROPIC_API_KEY` | Required. Anthropic API key. |
-| `ANTHROPIC__MODEL` | Model id (e.g. `claude-sonnet-4-5`). |
-| `ANTHROPIC__PRICE_PER_MTOK_INPUT` / `_OUTPUT` | Used to estimate run cost. |
-| `TOL_ABS` / `TOL_REL` | Numeric comparison tolerances. |
+Set `ANTHROPIC__API_KEY` in `.env`. Everything else (model, pricing, tolerances, paths) has sensible defaults in [`src/settings.py`](src/settings.py) and only needs overriding if you want to change behavior.
 
 ## Report
 
