@@ -35,7 +35,7 @@ Append-only. Dev is the held-out measurement set; the table below records every 
 
 | Version | Prompt git tag | Seed | Per-turn | Per-conv | USD | Wall | Notes |
 |---|---|---|---|---|---|---|---|
-| v0 | `prompt-v0` | 1002385739 | _pending_ | _pending_ | _pending_ | _pending_ | Baseline, full dev (421 records) |
+| v0 | `prompt-v0` | 1002385739 | 83.5% (1244/1490) | 73.6% (310/421) | $19.04 | 72 min | Baseline, full dev (421 records). Type I 85.7% / Type II 78.1%. `has_duplicate_columns` 67.2% (n=64) — flagged. |
 | v1 | `prompt-v1` | 1002385739 | _pending_ | _pending_ | _pending_ | _pending_ | After Phase 2.5 train iteration |
 | v2 | `prompt-v2` | 1002385739 | _pending_ | _pending_ | _pending_ | _pending_ | Optional second iteration cycle |
 
