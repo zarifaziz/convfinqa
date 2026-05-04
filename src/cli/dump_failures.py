@@ -56,12 +56,14 @@ def dump_failures(
 
 
 def _header(failures: list[dict], src: Path) -> str:
-    return (
-        f"# Failures from {src}\n\n"
-        f"{len(failures)} failed turns. Sorted by "
-        f"`(num_dialogue_turns desc, turn_idx desc)` — hardest cases first.\n\n"
-        f"---\n\n"
-    )
+    return f"""\
+# Failures from {src}
+
+{len(failures)} failed turns. Sorted by `(num_dialogue_turns desc, turn_idx desc)` — hardest cases first.
+
+---
+
+"""
 
 
 def _render_failure(failure: dict, record: ConvFinQARecord) -> str:
@@ -74,19 +76,26 @@ def _render_failure(failure: dict, record: ConvFinQARecord) -> str:
         for i in range(turn_idx)
     ) or "_none_"
 
-    return (
-        f"## {record.id} — turn {turn_idx}\n\n"
-        f"**features:** num_turns={record.features.num_dialogue_turns}, "
-        f"type2={record.features.has_type2_question}, "
-        f"dup_cols={record.features.has_duplicate_columns}, "
-        f"non_numeric={record.features.has_non_numeric_values}\n\n"
-        f"**Prior turns:**\n{prior_block}\n\n"
-        f"**This turn (t{turn_idx}):** {failure['question']!r}\n\n"
-        f"- **gold:** `{failure['gold']!r}`\n"
-        f"- **predicted:** `{failure['predicted_answer']}` (unit `{failure['predicted_unit']}`, "
-        f"sign `{failure.get('predicted_sign_convention', '?')}`)\n"
-        f"- **calculation:** `{failure['predicted_calculation']}`\n"
-        f"- **reasoning:** {failure['predicted_reasoning']}\n\n"
-        f"**Table:**\n\n{render_table(record.doc.table)}\n\n"
-        f"---\n\n"
-    )
+    feats = record.features
+    return f"""\
+## {record.id} — turn {turn_idx}
+
+**features:** num_turns={feats.num_dialogue_turns}, type2={feats.has_type2_question}, dup_cols={feats.has_duplicate_columns}, non_numeric={feats.has_non_numeric_values}
+
+**Prior turns:**
+{prior_block}
+
+**This turn (t{turn_idx}):** {failure['question']!r}
+
+- **gold:** `{failure['gold']!r}`
+- **predicted:** `{failure['predicted_answer']}` (unit `{failure['predicted_unit']}`, sign `{failure.get('predicted_sign_convention', '?')}`)
+- **calculation:** `{failure['predicted_calculation']}`
+- **reasoning:** {failure['predicted_reasoning']}
+
+**Table:**
+
+{render_table(record.doc.table)}
+
+---
+
+"""

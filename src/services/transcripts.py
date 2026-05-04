@@ -32,22 +32,29 @@ def write_transcript_md(path: Path, line: dict[str, Any]) -> None:
 
     # Section order mirrors what the model actually receives on the wire:
     # `system` first, then the `messages` list, then its tool_use response.
-    section = (
-        f"# {line.get('record_id')} (turn {line.get('turn_idx')})\n\n"
-        f"**correct:** {line.get('correct')} &nbsp;&nbsp; "
-        f"**latency:** {line.get('latency_ms')} ms &nbsp;&nbsp; "
-        f"**gold:** `{line.get('gold')!r}` &nbsp;&nbsp; "
-        f"**question:** {line.get('question')}\n\n"
-        f"## System prompt\n\n"
-        f"```\n{line.get('system_prompt', '')}\n```\n\n"
-        f"## Messages (prior turns + current question)\n\n"
-        f"{anthropic.render_messages_md(messages)}\n"
-        f"## Response — tool call ({tool_call.get('name')!r})\n\n"
-        f"- **reasoning:** {parsed.get('reasoning')}\n"
-        f"- **calculation:** `{parsed.get('calculation')}`\n"
-        f"- **answer:** `{parsed.get('answer')}`\n"
-        f"- **unit:** `{parsed.get('unit')}`\n\n"
-        f"---\n\n"
-    )
+    section = f"""\
+# {line.get('record_id')} (turn {line.get('turn_idx')})
+
+**correct:** {line.get('correct')} &nbsp;&nbsp; **latency:** {line.get('latency_ms')} ms &nbsp;&nbsp; **gold:** `{line.get('gold')!r}` &nbsp;&nbsp; **question:** {line.get('question')}
+
+## System prompt
+
+```
+{line.get('system_prompt', '')}
+```
+
+## Messages (prior turns + current question)
+
+{anthropic.render_messages_md(messages)}
+## Response — tool call ({tool_call.get('name')!r})
+
+- **reasoning:** {parsed.get('reasoning')}
+- **calculation:** `{parsed.get('calculation')}`
+- **answer:** `{parsed.get('answer')}`
+- **unit:** `{parsed.get('unit')}`
+
+---
+
+"""
     with path.open("a", encoding="utf-8") as fh:
         fh.write(section)
