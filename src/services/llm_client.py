@@ -36,7 +36,11 @@ class AnthropicClient:
     _MAX_TOKENS = 4096
 
     def __init__(self, settings: AnthropicSettings) -> None:
-        self._client = Anthropic(api_key=settings.api_key)
+        # `max_retries=4`: SDK default is 2; concurrency=5 + parallel records
+        # bumps occasional 429s as we approach the input-tokens-per-minute cap.
+        # Backoff is exponential, so the worst-case wall hit is ~30s on a hot
+        # window, far cheaper than crashing the whole eval.
+        self._client = Anthropic(api_key=settings.api_key, max_retries=4)
         self._model_name = settings.model_name
 
     def predict_with_tool(

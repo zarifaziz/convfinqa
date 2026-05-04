@@ -30,7 +30,7 @@ build-backend = "hatchling.build"
 packages = ["src"]
 
 [project.scripts]
-main = "src.main:app"
+main = "src.cli.main:app"
 
 
 [tool.ruff]
