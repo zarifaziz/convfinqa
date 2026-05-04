@@ -48,11 +48,12 @@ def render_table(table: dict[str, dict[str, float | str | int]]) -> str:
 
 
 def render_document(doc: Document) -> str:
-    return (
-        "## Document context (before table)\n"
-        f"{doc.pre_text}\n\n"
-        "## Table\n"
-        f"{render_table(doc.table)}\n\n"
-        "## Document context (after table)\n"
-        f"{doc.post_text}"
-    )
+    return f"""\
+## Document context (before table)
+{doc.pre_text}
+
+## Table
+{render_table(doc.table)}
+
+## Document context (after table)
+{doc.post_text}"""
