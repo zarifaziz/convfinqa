@@ -81,20 +81,11 @@ def test_to_anthropic_tool_emits_expected_shape() -> None:
                     "type": "string",
                     "enum": ["magnitude", "signed", "n/a"],
                     "description": (
-                        "Whether the question wants a magnitude (sign stripped) or a signed value (sign preserved). "
-                        "This is NOT the unit — for percent or ratio quantities, set `unit='percent'` or `unit='ratio'` "
-                        "separately; sign_convention is solely about whether the answer carries a sign. "
-                        "Decide before writing `answer`; the sign of `answer` must match this choice. "
-                        "Use 'magnitude' for inherently non-negative quantities (discount rates, yields, returns, margins) "
-                        "and for 'what were the losses / charges / write-downs in <year>?' — the cell's negative sign is the "
-                        "earnings impact, but the loss IS the magnitude. "
-                        "Use 'signed' for arithmetic-result and net values where the direction matters: 'change', "
-                        "'variation', 'difference', 'increase', 'decrease', 'decline', 'drop', 'growth', 'net cash flow', "
-                        "'net income', 'net loss', 'X less Y', 'X minus Y'. For 'X less Y' / 'X minus Y' / 'difference "
-                        "between X and Y', compute X − Y in the order named — the result may be negative. For 'decline / "
-                        "decrease / drop', preserve the sign produced by the arithmetic; do not strip it. "
-                        "Use 'n/a' ONLY for boolean (yes/no) answers. NEVER assign 'n/a' to a numeric question, even if "
-                        "the answer is zero or you are uncertain — pick 'magnitude' or 'signed'."
+                        "Does the question want a signed value (direction matters) or a magnitude (size only)? "
+                        "'signed' for arithmetic results — change, difference, X minus Y, net values. "
+                        "'magnitude' when the question names an inherently non-negative quantity (rate, yield, "
+                        "loss, charge) and the table's negative sign is a display convention. "
+                        "'n/a' only for yes/no questions."
                     ),
                 },
                 "answer": {
