@@ -1,9 +1,5 @@
 # Design Decisions
 
-Five decisions worth defending in interview. Each is a queryable answer to "why did you do X?"
-
-For the model-selection decision (Anthropic provider, primary model, dev-iteration model), see [model_selection.md](model_selection.md). It is kept separate because its rationale is benchmark-cited and the supporting evidence runs longer than this doc's per-entry budget.
-
 ## Single forced `submit_answer` tool over agentic calc-loop
 
 Decision: one tool, one round-trip per turn. The model emits `{reasoning, calculation, answer, unit}` and the call ends.
