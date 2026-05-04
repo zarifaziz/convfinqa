@@ -53,6 +53,11 @@ def test_compare_answer_string(predicted: str, gold: str, expected: bool) -> Non
         ("206588", 206588.0, "none", True),
         # Falls back to current behavior when unit is omitted.
         ("14.1", 0.14136, None, False),
+        # Real Phase 4 failure: dataset stores some percent golds in raw-percent
+        # form (3.97 for a 3.97% discount rate), not decimal (0.0397). Try both
+        # interpretations and accept whichever matches.
+        ("3.97", 3.97, "percent", True),
+        ("-9402", -9402.0, "percent", True),
     ],
 )
 def test_compare_answer_honors_unit_hint(

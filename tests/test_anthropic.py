@@ -30,7 +30,13 @@ TOOL_RESULT_ACK = "recorded"
 
 
 def _predicted(answer: str = "100", unit: str = "raw") -> PredictedAnswer:
-    return PredictedAnswer(reasoning="r", calculation="100", answer=answer, unit=unit)
+    return PredictedAnswer(
+        reasoning="r",
+        calculation="100",
+        sign_convention="signed",
+        answer=answer,
+        unit=unit,
+    )
 
 
 def _turn(q: str, tool_use_id: str, predicted: PredictedAnswer) -> Turn:

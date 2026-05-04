@@ -48,6 +48,7 @@ def test_answer_single_passes_question_and_returns_predicted_answer() -> None:
     canned = SubmitAnswer(
         reasoning="206588 - 181001 = 25587",
         calculation="206588 - 181001",
+        sign_convention="signed",
         answer="25587",
         unit="raw",
     )
@@ -66,6 +67,7 @@ def test_answer_single_passes_question_and_returns_predicted_answer() -> None:
     assert result.predicted == PredictedAnswer(
         reasoning="206588 - 181001 = 25587",
         calculation="206588 - 181001",
+        sign_convention="signed",
         answer="25587",
         unit="raw",
     )
@@ -103,7 +105,13 @@ def _record(questions: list[str], golds: list[float]) -> ConvFinQARecord:
 
 
 def _canned(answer: str) -> SubmitAnswer:
-    return SubmitAnswer(reasoning="r", calculation=answer, answer=answer, unit="raw")
+    return SubmitAnswer(
+        reasoning="r",
+        calculation=answer,
+        sign_convention="signed",
+        answer=answer,
+        unit="raw",
+    )
 
 
 def test_answer_conversation_replays_prior_turns() -> None:

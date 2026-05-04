@@ -45,22 +45,21 @@ def compare_answer(
     if isinstance(predicted, bool):
         return False
     if isinstance(predicted, (int, float)):
-        parsed: float | None = float(predicted)
+        candidates: list[float] = [float(predicted)]
     elif isinstance(predicted, str):
         parsed = _parse_numeric(predicted)
-        # Prompt contract: model emits '14.1' (not '0.141') with unit='percent'.
-        # Normalize via the unit hint when the answer string didn't already
-        # carry a `%` suffix (which the parser would have handled).
-        if (
-            parsed is not None
-            and unit == "percent"
-            and not predicted.strip().endswith("%")
-        ):
-            parsed /= 100.0
+        if parsed is None:
+            return False
+        candidates = [parsed]
+        # Percent unit, no `%` suffix: try both raw-percent (3.97 = 3.97%) and
+        # decimal-normalized (3.97 → 0.0397) against gold. The dataset stores
+        # percent golds in BOTH conventions — some as decimal (0.141), some as
+        # raw-percent (3.97 for a 3.97% discount rate). Try both, accept the
+        # closer match within tolerance.
+        if unit == "percent" and not predicted.strip().endswith("%"):
+            candidates.append(parsed / 100.0)
     else:
         return False
 
-    if parsed is None:
-        return False
-
-    return abs(parsed - gold) <= max(tol_abs, tol_rel * abs(gold))
+    threshold = max(tol_abs, tol_rel * abs(gold))
+    return any(abs(c - gold) <= threshold for c in candidates)

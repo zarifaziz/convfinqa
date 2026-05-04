@@ -12,12 +12,14 @@ def test_submit_answer_pydantic_round_trip() -> None:
     instance = SubmitAnswer(
         reasoning="206588 - 181001 = 25587",
         calculation="206588 - 181001",
+        sign_convention="signed",
         answer="25587",
         unit="raw",
     )
     assert instance.model_dump() == {
         "reasoning": "206588 - 181001 = 25587",
         "calculation": "206588 - 181001",
+        "sign_convention": "signed",
         "answer": "25587",
         "unit": "raw",
     }
@@ -31,9 +33,26 @@ def test_submit_answer_unit_enum_rejects_unknown_values() -> None:
         SubmitAnswer(
             reasoning="x",
             calculation="x",
+            sign_convention="n/a",
             answer="x",
             unit="dollars",  # not in {raw, percent, ratio, none}
         )
+
+
+def test_submit_answer_sign_convention_coerces_unknown_to_signed() -> None:
+    # Defensive: if the model emits a value outside the enum (common confusion
+    # with `unit`, e.g. emitting 'ratio'), validation must not crash the eval.
+    # Coerced to 'signed' — the safe default for arithmetic-result questions.
+    instance = SubmitAnswer.model_validate(
+        {
+            "reasoning": "x",
+            "calculation": "x",
+            "sign_convention": "ratio",  # not in {magnitude, signed, n/a}
+            "answer": "x",
+            "unit": "raw",
+        }
+    )
+    assert instance.sign_convention == "signed"
 
 
 def test_to_anthropic_tool_emits_expected_shape() -> None:
@@ -48,7 +67,7 @@ def test_to_anthropic_tool_emits_expected_shape() -> None:
         "input_schema": {
             "type": "object",
             "additionalProperties": False,
-            "required": ["reasoning", "calculation", "answer", "unit"],
+            "required": ["reasoning", "calculation", "sign_convention", "answer", "unit"],
             "properties": {
                 "reasoning": {
                     "type": "string",
@@ -57,6 +76,26 @@ def test_to_anthropic_tool_emits_expected_shape() -> None:
                 "calculation": {
                     "type": "string",
                     "description": "Arithmetic expression that produced the answer, e.g. '206588 - 181001'.",
+                },
+                "sign_convention": {
+                    "type": "string",
+                    "enum": ["magnitude", "signed", "n/a"],
+                    "description": (
+                        "Whether the question wants a magnitude (sign stripped) or a signed value (sign preserved). "
+                        "This is NOT the unit — for percent or ratio quantities, set `unit='percent'` or `unit='ratio'` "
+                        "separately; sign_convention is solely about whether the answer carries a sign. "
+                        "Decide before writing `answer`; the sign of `answer` must match this choice. "
+                        "Use 'magnitude' for inherently non-negative quantities (discount rates, yields, returns, margins) "
+                        "and for 'what were the losses / charges / write-downs in <year>?' — the cell's negative sign is the "
+                        "earnings impact, but the loss IS the magnitude. "
+                        "Use 'signed' for arithmetic-result and net values where the direction matters: 'change', "
+                        "'variation', 'difference', 'increase', 'decrease', 'decline', 'drop', 'growth', 'net cash flow', "
+                        "'net income', 'net loss', 'X less Y', 'X minus Y'. For 'X less Y' / 'X minus Y' / 'difference "
+                        "between X and Y', compute X − Y in the order named — the result may be negative. For 'decline / "
+                        "decrease / drop', preserve the sign produced by the arithmetic; do not strip it. "
+                        "Use 'n/a' ONLY for boolean (yes/no) answers. NEVER assign 'n/a' to a numeric question, even if "
+                        "the answer is zero or you are uncertain — pick 'magnitude' or 'signed'."
+                    ),
                 },
                 "answer": {
                     "type": "string",

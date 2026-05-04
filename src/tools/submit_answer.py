@@ -8,7 +8,8 @@ free-form prose — the response either parses or surfaces a hard error.
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from loguru import logger
+from pydantic import BaseModel, Field, field_validator
 
 
 class SubmitAnswer(BaseModel):
@@ -16,6 +17,38 @@ class SubmitAnswer(BaseModel):
     calculation: str = Field(
         description="Arithmetic expression that produced the answer, e.g. '206588 - 181001'."
     )
+    sign_convention: Literal["magnitude", "signed", "n/a"] = Field(
+        description=(
+            "Whether the question wants a magnitude (sign stripped) or a signed value (sign preserved). "
+            "This is NOT the unit — for percent or ratio quantities, set `unit='percent'` or `unit='ratio'` "
+            "separately; sign_convention is solely about whether the answer carries a sign. "
+            "Decide before writing `answer`; the sign of `answer` must match this choice. "
+            "Use 'magnitude' for inherently non-negative quantities (discount rates, yields, returns, margins) "
+            "and for 'what were the losses / charges / write-downs in <year>?' — the cell's negative sign is the "
+            "earnings impact, but the loss IS the magnitude. "
+            "Use 'signed' for arithmetic-result and net values where the direction matters: 'change', "
+            "'variation', 'difference', 'increase', 'decrease', 'decline', 'drop', 'growth', 'net cash flow', "
+            "'net income', 'net loss', 'X less Y', 'X minus Y'. For 'X less Y' / 'X minus Y' / 'difference "
+            "between X and Y', compute X − Y in the order named — the result may be negative. For 'decline / "
+            "decrease / drop', preserve the sign produced by the arithmetic; do not strip it. "
+            "Use 'n/a' ONLY for boolean (yes/no) answers. NEVER assign 'n/a' to a numeric question, even if "
+            "the answer is zero or you are uncertain — pick 'magnitude' or 'signed'."
+        )
+    )
+
+    @field_validator("sign_convention", mode="before")
+    @classmethod
+    def _coerce_unknown(cls, v: object) -> object:
+        # Defensive coercion: if the model emits a value outside the enum
+        # (most common: confusion with `unit` and emitting 'ratio'), don't crash
+        # the whole eval run — log loudly and fall back to 'signed' (the safe
+        # default for arithmetic-result questions, which dominate this dataset).
+        if isinstance(v, str) and v not in ("magnitude", "signed", "n/a"):
+            logger.warning(
+                "sign_convention out of enum: {!r} → coerced to 'signed'", v
+            )
+            return "signed"
+        return v
     answer: str = Field(
         description=(
             "Final answer as a string. Numbers as plain digits "
