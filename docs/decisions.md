@@ -79,3 +79,47 @@ Why: empirical investigation across 3,458 records (see [plans/2_data_loading_and
 Alternative: preemptive coercion of non-numeric cells and suffix collapsing.
 
 Trigger to revisit: eval accuracy on records where `has_non_numeric_values=True` or `has_duplicate_columns=True` is materially lower than on the rest of dev — handle those subgroups specifically rather than across-the-board.
+
+## CLI default `--split=train`; dev runs are explicit named events tied to prompt-vN tags
+
+Decision: the `eval` subcommand defaults `--split=train`. Dev runs require typing `--split=dev` explicitly and are recorded in [REPORT.md](../REPORT.md)'s "Dev measurement manifest" — one row per `prompt-vN` git tag. Hard cap at three dev rows (v0, v1, v2). Anything beyond is "What I'd do next."
+
+Why: the held-out discipline rests on never iterating against dev. A CLI default of `dev` makes accidental contamination one keystroke away — `uv run main eval --n 20` lands on dev silently. Defaulting to train converts the contamination risk into a deliberate, named event that shows up in shell history and as a manifest commit. The prompt-vN tag scheme makes each dev run reproducible from a SHA, not just observable in `runs/`.
+
+Alternative: keep `--split=dev` default and rely on operator discipline. Or remove the dev split from the CLI entirely behind a separate command.
+
+Trigger to revisit: never. This is a cheap guard with no downside.
+
+## Iterate on train, measure dev once per prompt version, hard-cap at v2
+
+Decision: Phase 2.5 train-side iterative improvement loop. Read failures on train, hand-classify into buckets, apply one targeted prompt intervention per cycle, re-run on the same train sample. Tag the converged prompt as `prompt-vN` and run dev exactly once for the manifest. Repeat at most twice (v1, v2); v3 ships as future work.
+
+Why: the dataset's only held-out split is dev. Iterating against dev would convert the headline from a held-out estimate into a fitting curve. Train (3,037 records) supplies all the iteration ergonomics — failure classification, few-shot picking, prompt tuning — without contaminating dev. Dev contact is a measurement event, not an input to "what should I change next." The hard cap forces scope discipline: with two dev measurements you can show a curve; with five you start chasing noise.
+
+Each iteration must (a) name the bucket targeted, (b) name the intervention, (c) report the delta. Without all three it isn't iteration — it's noise-chasing.
+
+Alternative: iterate freely on dev with no manifest discipline, or carve a held-out from train.
+
+Trigger to revisit: a v3 dev measurement is genuinely warranted (e.g. a v2 intervention surfaced an obvious next bucket with high-confidence prompt fix). Even then, document the cap-break as a deliberate choice in the manifest notes.
+
+## Document dataset-cleaning artefacts as failing-by-design regression tests, not a secondary cleaner
+
+Decision: when `dialogue.turn_program` literals don't appear in `doc.table` / `pre_text` / `post_text`, or when gold and table cells visibly disagree, the evaluation pipeline does NOT silently filter, normalize, or back-fill. Instead, [tests/repository/test_dataset_quality.py](../tests/repository/test_dataset_quality.py) pins specific records (`AWK/2013`, `STT/2008`, `IPG/2018`) with assertions that *the issue still exists*. Tests fail-by-design when the upstream FinQA cleaning is fixed, alerting future-us to update [REPORT.md](../REPORT.md) limitations.
+
+Why: the dataset is shipped pre-cleaned by an upstream process we don't own. A secondary cleaning layer here would (a) double-handle the data, (b) drift from the upstream as it changes, (c) hide noise the report needs to quantify. Regression tests let the report cite specific record IDs and counts as machine-checked claims rather than vibes-cited prose, while keeping the model's input identical to the shipped JSON. The "do nothing cleaning" decision is preserved at the data layer; quality concerns surface as tests, not transformations.
+
+Alternative: a secondary cleaner that filters records with `turn_program` literals not findable in the document, plus a synthetic gold-injection step for label-swap cases. Heavier and harder to defend as not-overfitting.
+
+Trigger to revisit: a full-dataset quality scanner (`uv run main scan-quality`) shows a significant fraction (>5%) of records with verifiable gold/table mismatches. At that volume, structured filtering becomes worth the methodological cost.
+
+## Parallel records via ThreadPoolExecutor; concurrency calibrated to provider input-TPM ceiling
+
+Decision: [`src/services/evaluator.py`](../src/services/evaluator.py) parallelises across records with `concurrent.futures.ThreadPoolExecutor`. Default `--concurrency=15`, sitting at ~50% of Anthropic's 450k input-TPM ceiling at the observed ~3-4k input tokens/call. SDK `max_retries=4` (default 2) absorbs transient 429s on hot windows. Per-record writes (predictions.jsonl, transcripts.{jsonl,md}) are buffered in memory then flushed atomically under a single `threading.Lock`, so concurrent record completion never interleaves lines mid-record.
+
+Why: full-dev runs would otherwise take ~75 min sequentially per prompt version × 3 prompts = 3.75 h of pipeline wall. Parallelism is the difference between iterating in an afternoon vs across days. Threads (not asyncio) keep the answer/llm_client modules unchanged — the Anthropic SDK is sync and thread-safe, async would have rewritten the calling stack for no extra throughput at this scale (I/O-bound, ≤50 concurrent calls). Buffer-then-flush is per-record atomicity without per-write contention.
+
+Within-conversation turns must remain sequential — turn N+1's message history depends on turn N's `tool_use_id` and predicted answer. Parallelism is across records only.
+
+Alternative: `asyncio` with `AsyncAnthropic`, or sequential execution.
+
+Trigger to revisit: provider rate limits change, or a different provider with different concurrency profile is added (see "Explicit provider naming" trigger). At a second provider, concurrency would move into a per-provider config rather than a single CLI flag.

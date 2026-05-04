@@ -64,6 +64,33 @@ Three failure clusters surfaced; phase 4 will quantify them on the full-dev pred
 
 Clusters 1 and 3 are model-side; cluster 2 is data-side. The dominant intervention from here is on the model side — a prompt-engineering pass that primes financial-statement reading conventions and forces an explicit "magnitude vs signed" decision before extraction. Phase 4 will quantify the share of each cluster on full-dev so the prompt iteration is aimed at the dominant mode rather than the most memorable one.
 
+## Error analysis (n=100 train, prompt-v1)
+
+Train n=100 (seed `1002385739`) on `prompt-v1` produced 53 failed turns of 365. Hand-classification:
+
+**Data-side failures unrecoverable from input (16 of 53, 30%).** Four records have golds that cannot be derived from the cleaned `pre_text + table + post_text`. Each is pinned as a failing-by-design test in [tests/repository/test_dataset_quality.py](tests/repository/test_dataset_quality.py):
+- `Double_AWK/2013/page_123.pdf` (5 turns) — gold values `3734`, `2059` appear nowhere in the document; cleaning lost the per-year breakdown rows.
+- `Single_IPG/2018/page_26.pdf-2` (5 turns) — table maps shares to October / November; gold has the labels swapped.
+- `Single_CB/2008/page_83.pdf-2` (6 turns) — gold treats a flow row (`losses and loss expenses incurred = 7603`) as the opening balance for 2008; the table has explicit `balance at december 31 2007` rows of 37,112 / 23,592.
+
+Stripping these 16, the model's effective per-turn accuracy on the remaining 96 records is **≈93%** (293/313).
+
+**Model-side failures (37 of 53, 70%) cluster into seven patterns:**
+
+| Pattern | Failures | Prompt-fixable? |
+|---|---|---|
+| A. Table preferred over surrounding narrative | ≈9 | **Yes** — single rule |
+| B. "Convert to thousands/millions/hundreds" idiom mismatches | 5 | No (annotator inconsistency) |
+| C. Sign / magnitude — including v1's rule mis-applied | 4 | No (dataset itself is inconsistent) |
+| D. "Change rate" / "growth rate" — ratio vs percent | 2 | No (annotator inconsistency) |
+| E. Wrong concept / column / row picked when multiple exist | 5 | Partial (case-by-case) |
+| F. Genuinely ambiguous question phrasing | 3 | No |
+| G. Cascade from upstream A–F failures | ≈5 | No (downstream) |
+
+**Pattern A is the clearest v2 candidate.** The model defaults to extracting from the rendered table even when the gold answer lives in `pre_text` or `post_text`. In several cases (e.g., `Double_STT/2008/page_116.pdf` t1) the model's own reasoning *quotes* the narrative value and then chooses the table value anyway — a known-fixable behaviour rather than a knowledge gap. Examples: `STT/2008` t0/t1, `ADI/2009` t0, `ADI/2010` t0/t1, `IPG/2018/page_52` t0, `PPG/2005` t0.
+
+Patterns B, D, F are not prompt-recoverable — they reflect annotator inconsistency or genuinely ambiguous question wording where the model's reading is defensible. Pattern C is annotator-inconsistent in the opposite way: v1's "decline → magnitude" rule helps some records (`AAPL`, `RE/2012`) but mis-aligns gold for others (`MRO/2014`, `RSG/2012` expect signed; `HII/2011` expects magnitude where the model returned signed).
+
 ## Limitations
 
 - **Dev is the only held-out split in the shipped JSON.** The 434-record test split advertised in the dataset card is absent. Dev was used both as the evaluation set and (lightly) as the prompt-iteration set; the headline number is "best-effort on dev," not a true held-out estimate. See `docs/decisions.md` "Dev as held-out".

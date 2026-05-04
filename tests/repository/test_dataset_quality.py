@@ -52,24 +52,33 @@ def test_awk_dsl_constants_missing_from_document(train_records):
     assert record.dialogue.turn_program[2] == "2059"
 
 
-def test_stt_gold_lives_in_post_text_not_table(train_records):
-    """STT/2008: the question "what was the total conduit asset in 2008?"
-    has gold `23.59`, which appears in `post_text` referring to *liquidity
-    asset purchase agreements* — not the table's `total conduit assets`
-    row, which has `23.89`. Distinct financial concepts; the question
-    phrasing is ambiguous between them. Recoverable in principle by a
-    model that picks the post_text concept; not a cleaning artefact.
+def test_cb_2008_gold_uses_flow_row_as_opening_balance(train_records):
+    """CB/2008: t0 question 'what was the balance of unpaid losses in the
+    beginning of 2008?' has gold `7603`. That value lives in the
+    `losses and loss expenses incurred` / `net losses` cell — a flow row,
+    not a balance. The table has explicit `balance at december 31 2007`
+    rows (37,112 gross / 23,592 net). The gold's arithmetic chain
+    (`add(7603, -6327) → 1276`, ...) is internally consistent but
+    disconnected from any row labelled as a balance, so the t0–t5
+    sequence cascades and is unrecoverable from the input.
     """
-    record = train_records["Double_STT/2008/page_116.pdf"]
+    record = train_records["Single_CB/2008/page_83.pdf-2"]
 
-    assert record.doc.table["2008 amount (1)"]["total conduit assets"] == 23.89
-    assert record.doc.table["2008 amount (2)"]["total conduit assets"] == 28.76
+    assert record.doc.table["gross losses"]["balance at december 31 2007"] == 37112.0
+    assert record.doc.table["net losses"]["balance at december 31 2007"] == 23592.0
 
-    assert "23.59" in record.doc.post_text
-    assert "28.37" in record.doc.post_text
+    assert record.doc.table["net losses"]["losses and loss expenses incurred"] == 7603.0
+    assert record.dialogue.turn_program[0] == "7603"
+    assert record.dialogue.executed_answers[0] == 7603.0
 
-    assert record.dialogue.executed_answers[0] == 23.59
-    assert record.dialogue.executed_answers[1] == 28.37
+    for col_name, column in record.doc.table.items():
+        for row_label, value in column.items():
+            if "balance" in row_label:
+                assert value != 7603.0, (
+                    f"Dataset state changed: '7603' is now a balance value at "
+                    f"{col_name!r}/{row_label!r}. Gold for CB/2008 t0 may now "
+                    "be derivable; revisit pin and update REPORT.md limitations."
+                )
 
 
 def test_ipg_row_labels_swapped_vs_dsl(train_records):

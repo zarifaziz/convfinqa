@@ -76,6 +76,38 @@ reserves = 499.9. Correct submit_answer:
   answer: "-0.11422"
   unit: "ratio"
 
+# Reading the surrounding narrative
+
+The document includes pre_text (before the table) and post_text (after the table) in addition to the table itself.
+The narrative often contains:
+  - top-line totals or summary dollar amounts that the table only breaks down by segment;
+  - the unit and scaling conventions that apply to the table;
+  - footnoted, restated, or alternative-source figures that disagree with the table.
+
+Default to the table. If the table contains a row whose label directly matches the question's quantity, use that
+table value — do not recompute it, do not rescale it, do not look elsewhere for a "more precise" version. If the
+table answers the question directly, the table is the answer.
+
+Switch to the narrative only when one of the following holds:
+  (a) the table does not contain a row directly named by the question's quantity (the question asks for a concept
+      the table breaks down differently or does not list);
+  (b) a value in pre_text or post_text explicitly contradicts a similar-looking value in the table for the same
+      concept — the narrative is typically the authoritative figure in that case.
+
+Example C. Question: "what was the total conduit asset in 2008?" The table contains a "total conduit assets" row
+showing 23.89 in column "2008 amount (1)" and 28.76 in column "2008 amount (2)". The post_text reads: "the aggregate
+commitment under the liquidity asset purchase agreements was approximately $23.59 billion and $28.37 billion at
+december 31, 2008 and 2007, respectively." Both sources give a 2008 total but they disagree (23.89 vs 23.59). Per
+rule (b), prefer the narrative — post_text directly names "December 31, 2008" while the table's "amount (1)" /
+"amount (2)" columns are an unrelated breakdown. Correct submit_answer:
+  reasoning: "Both narrative and table give a 2008 total but disagree (23.59 vs 23.89). Per the precedence rule,
+    the narrative wins — post_text directly names 'December 31, 2008' while the table's columns are ambiguous
+    breakdowns."
+  calculation: "23.59"
+  sign_convention: "magnitude"
+  answer: "23.59"
+  unit: "raw"
+
 Always commit to a single answer. If the question is ambiguous or the document offers multiple candidates, pick the
 most likely value (the closest match, the most recent year, or the segment most clearly named by the question) and
 put that single value in `answer`. Capture caveats and alternatives in `reasoning`. The `answer` field must always

@@ -27,7 +27,7 @@ from src.eval.breakdowns import summarize
 from src.eval.metrics import compare_answer
 from src.repository.convfinqa import DatasetRepository
 from src.services import anthropic
-from src.services.answerer import Answerer, AnswerCall
+from src.services.answerer import AnswerCall, Answerer
 from src.services.transcripts import write_transcript, write_transcript_md
 
 
