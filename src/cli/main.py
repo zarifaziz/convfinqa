@@ -1,7 +1,8 @@
 """Typer CLI for the ConvFinQA pipeline.
 
-Thin entry point: parse args, build services, call `Evaluator.run`, print
-summary. All orchestration lives in `src/services/evaluator.py`.
+Subcommands:
+  - `eval` — score the model on a dataset split (full pipeline).
+  - `dump-failures` — turn a run's failed predictions into a hand-readable markdown.
 """
 
 from typing import Optional
@@ -12,6 +13,7 @@ from rich import print as rich_print
 from rich.console import Console
 from rich.table import Table
 
+from src.cli.dump_failures import dump_failures
 from src.logger import init_run
 from src.repository.convfinqa import JsonDatasetRepository
 from src.services.answerer import Answerer
@@ -23,12 +25,12 @@ app = typer.Typer(
     name="main",
     help="ConvFinQA pipeline CLI.",
     add_completion=True,
-    no_args_is_help=False,
+    no_args_is_help=True,
 )
 
 
-@app.command()
-def eval(
+@app.command(name="eval")
+def eval_(
     n: Optional[int] = typer.Option(None, "--n", help="Cap evaluation to N randomly-sampled records (no cap if omitted)."),
     record_id: Optional[str] = typer.Option(None, "--record-id", help="Run a single record by id."),
     split: str = typer.Option(
@@ -42,7 +44,15 @@ def eval(
     ),
     seed: Optional[int] = typer.Option(None, "--seed", help="RNG seed for sampling. If omitted, a fresh seed is generated and logged."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Print every per-turn row in the summary table."),
-    concurrency: int = typer.Option(8, "--concurrency", help="Number of records evaluated in parallel. 1 disables threading."),
+    concurrency: int = typer.Option(
+        5,
+        "--concurrency",
+        help=(
+            "Number of records evaluated in parallel. 1 disables threading. "
+            "5 keeps us under Anthropic's 450k input-tok/min rate limit at "
+            "~3k tok/call avg; bump only if you confirm headroom."
+        ),
+    ),
 ) -> None:
     """Score the model's predictions over `split`, multi-turn."""
     settings = Settings()
@@ -66,6 +76,9 @@ def eval(
         concurrency=concurrency,
     )
     _print_summary(summary, verbose=verbose)
+
+
+app.command(name="dump-failures")(dump_failures)
 
 
 def _print_summary(summary: EvalSummary, *, verbose: bool) -> None:
