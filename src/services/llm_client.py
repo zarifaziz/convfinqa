@@ -42,6 +42,8 @@ class AnthropicClient:
         # window, far cheaper than crashing the whole eval.
         self._client = Anthropic(api_key=settings.api_key, max_retries=4)
         self._model_name = settings.model_name
+        self._thinking_enabled = settings.thinking_enabled
+        self._thinking_budget = settings.thinking_budget_tokens
 
     def predict_with_tool(
         self,
@@ -51,14 +53,26 @@ class AnthropicClient:
     ) -> tuple[BaseModel, dict[str, Any]]:
         tool_dict = to_anthropic_tool(tool_model)
 
-        response = self._client.messages.create(
-            model=self._model_name,
-            max_tokens=self._MAX_TOKENS,
-            system=system,
-            messages=messages,
-            tools=[tool_dict],
-            tool_choice={"type": "tool", "name": tool_dict["name"]},
-        )
+        kwargs: dict[str, Any] = {
+            "model": self._model_name,
+            "max_tokens": self._MAX_TOKENS,
+            "system": system,
+            "messages": messages,
+            "tools": [tool_dict],
+            "tool_choice": {"type": "tool", "name": tool_dict["name"]},
+        }
+        if self._thinking_enabled:
+            # tool_choice "tool" is rejected with thinking; "any" still forces
+            # a tool call when only one tool is registered.
+            kwargs["tool_choice"] = {"type": "any"}
+            kwargs["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": self._thinking_budget,
+            }
+            # API requires max_tokens > budget_tokens; add the budget on top.
+            kwargs["max_tokens"] = self._MAX_TOKENS + self._thinking_budget
+
+        response = self._client.messages.create(**kwargs)
 
         tool_use = next(
             (block for block in response.content if block.type == "tool_use"),
