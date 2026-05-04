@@ -14,6 +14,8 @@ Writes three sibling files in the run dir:
 
 import json
 import random
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -86,6 +88,7 @@ class Evaluator:
         n: int | None = None,
         record_id: str | None = None,
         seed: int | None = None,
+        concurrency: int = 1,
     ) -> EvalSummary:
         # Always log the effective seed so a "random" run is reproducible later.
         effective_seed = seed if seed is not None else random.SystemRandom().randint(0, 2**31 - 1)
@@ -102,24 +105,46 @@ class Evaluator:
         n_total_turns = sum(len(r.dialogue.conv_questions) for r in records)
         logger.info(
             f"evaluating {len(records)} record(s) "
-            f"({n_total_turns} turns total) on split={split!r}"
+            f"({n_total_turns} turns total) on split={split!r} "
+            f"concurrency={concurrency}"
         )
 
         rows: list[EvalRow] = []
-        for idx, record in enumerate(records):
-            record_rows = self._score_conversation(
-                record, transcripts_path, transcripts_md_path
-            )
-            rows.extend(record_rows)
-            with predictions_path.open("a", encoding="utf-8") as fh:
-                for row in record_rows:
-                    fh.write(row.model_dump_json() + "\n")
+        write_lock = threading.Lock()
+        completed = 0
 
-            n_correct_in_record = sum(1 for r in record_rows if r.correct)
-            logger.info(
-                f"[{idx + 1}/{len(records)}] {record.id} "
-                f"turns={len(record_rows)} correct={n_correct_in_record}/{len(record_rows)}"
-            )
+        def _flush(record: ConvFinQARecord, record_rows: list[EvalRow], lines: list[dict[str, Any]]) -> None:
+            nonlocal completed
+            with write_lock:
+                for line in lines:
+                    write_transcript(transcripts_path, line)
+                    write_transcript_md(transcripts_md_path, line)
+                with predictions_path.open("a", encoding="utf-8") as fh:
+                    for row in record_rows:
+                        fh.write(row.model_dump_json() + "\n")
+                rows.extend(record_rows)
+                completed += 1
+                n_correct = sum(1 for r in record_rows if r.correct)
+                logger.info(
+                    f"[{completed}/{len(records)}] {record.id} "
+                    f"turns={len(record_rows)} correct={n_correct}/{len(record_rows)}"
+                )
+
+        if concurrency <= 1:
+            for record in records:
+                record_rows, lines = self._score_conversation(record)
+                _flush(record, record_rows, lines)
+        else:
+            with ThreadPoolExecutor(max_workers=concurrency) as pool:
+                futures = {pool.submit(self._score_conversation, r): r for r in records}
+                for future in as_completed(futures):
+                    record = futures[future]
+                    record_rows, lines = future.result()
+                    _flush(record, record_rows, lines)
+
+        # Predictions land in completion order under concurrency; downstream
+        # consumers should sort by (record_id, turn_idx) if they need input order.
+        rows.sort(key=lambda r: (r.record_id, r.turn_idx))
 
         breakdown = summarize(
             rows,
@@ -159,12 +184,16 @@ class Evaluator:
     def _score_conversation(
         self,
         record: ConvFinQARecord,
-        transcripts_path: Path,
-        transcripts_md_path: Path,
-    ) -> list[EvalRow]:
+    ) -> tuple[list[EvalRow], list[dict[str, Any]]]:
+        """Score one record's conversation; return (rows, transcript_lines).
+
+        Pure with respect to disk: caller flushes both lists to files under a
+        lock so concurrent runs don't interleave writes within a record.
+        """
         calls = self._answerer.answer_conversation(record)[1]
 
         rows: list[EvalRow] = []
+        lines: list[dict[str, Any]] = []
         for turn_idx, (call, question, gold) in enumerate(
             zip(
                 calls,
@@ -181,17 +210,17 @@ class Evaluator:
                 tol_rel=self._tol_rel,
             )
 
-            line = _build_transcript_line(
-                record_id=record.id,
-                turn_idx=turn_idx,
-                question=question,
-                call=call,
-                gold=gold,
-                correct=correct,
-                latency_ms=call.latency_ms,
+            lines.append(
+                _build_transcript_line(
+                    record_id=record.id,
+                    turn_idx=turn_idx,
+                    question=question,
+                    call=call,
+                    gold=gold,
+                    correct=correct,
+                    latency_ms=call.latency_ms,
+                )
             )
-            write_transcript(transcripts_path, line)
-            write_transcript_md(transcripts_md_path, line)
 
             rows.append(
                 EvalRow(
@@ -213,7 +242,7 @@ class Evaluator:
                     has_non_numeric_values=record.features.has_non_numeric_values,
                 )
             )
-        return rows
+        return rows, lines
 
 
 def _build_transcript_line(

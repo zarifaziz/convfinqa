@@ -34,6 +34,7 @@ def eval(
     split: str = typer.Option("dev", "--split", help="Dataset split to evaluate on."),
     seed: Optional[int] = typer.Option(None, "--seed", help="RNG seed for sampling. If omitted, a fresh seed is generated and logged."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Print every per-turn row in the summary table."),
+    concurrency: int = typer.Option(8, "--concurrency", help="Number of records evaluated in parallel. 1 disables threading."),
 ) -> None:
     """Score the model's predictions over `split`, multi-turn."""
     settings = Settings()
@@ -49,7 +50,12 @@ def eval(
         price_per_mtok_output=settings.anthropic.price_per_mtok_output,
     )
     summary = evaluator.run(
-        split=split, run_dir=run_dir, n=n, record_id=record_id, seed=seed
+        split=split,
+        run_dir=run_dir,
+        n=n,
+        record_id=record_id,
+        seed=seed,
+        concurrency=concurrency,
     )
     _print_summary(summary, verbose=verbose)
 

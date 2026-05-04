@@ -32,10 +32,8 @@ class AnthropicClient:
     raises a hard error worth seeing.
     """
 
-    # Anthropic requires `max_tokens` on every call but it caps output, not
-    # input. 1024 comfortably covers a `submit_answer` tool call (reasoning
-    # + calculation + answer + unit). Hardcoded so it isn't config surface.
-    _MAX_TOKENS = 1024
+    # Output cap
+    _MAX_TOKENS = 4096
 
     def __init__(self, settings: AnthropicSettings) -> None:
         self._client = Anthropic(api_key=settings.api_key)
@@ -65,6 +63,13 @@ class AnthropicClient:
         if tool_use is None:
             raise RuntimeError(
                 f"Forced tool_choice but no tool_use block in response: {response.model_dump()}"
+            )
+        if not tool_use.input:
+            # Almost always: stop_reason='max_tokens' — model truncated mid-JSON.
+            raise RuntimeError(
+                f"Empty tool_use.input (stop_reason={response.stop_reason!r}, "
+                f"output tokens={response.usage.output_tokens}). Likely "
+                f"max_tokens cap; bump _MAX_TOKENS or shorten the schema."
             )
 
         parsed = tool_model.model_validate(tool_use.input)
