@@ -31,7 +31,15 @@ app = typer.Typer(
 def eval(
     n: Optional[int] = typer.Option(None, "--n", help="Cap evaluation to N randomly-sampled records (no cap if omitted)."),
     record_id: Optional[str] = typer.Option(None, "--record-id", help="Run a single record by id."),
-    split: str = typer.Option("dev", "--split", help="Dataset split to evaluate on."),
+    split: str = typer.Option(
+        "train",
+        "--split",
+        help=(
+            "Dataset split to evaluate on. Default 'train' is the iteration "
+            "set; 'dev' is the held-out measurement set, used only for the "
+            "tagged prompt-v0 / prompt-v1 / prompt-v2 measurement runs."
+        ),
+    ),
     seed: Optional[int] = typer.Option(None, "--seed", help="RNG seed for sampling. If omitted, a fresh seed is generated and logged."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Print every per-turn row in the summary table."),
     concurrency: int = typer.Option(8, "--concurrency", help="Number of records evaluated in parallel. 1 disables threading."),
