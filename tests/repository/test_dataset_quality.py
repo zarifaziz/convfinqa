@@ -28,9 +28,7 @@ def _document_haystack(record) -> str:
     'is X anywhere in this document?'.
     """
     table_text = " ".join(
-        str(cell)
-        for column in record.doc.table.values()
-        for cell in column.values()
+        str(cell) for column in record.doc.table.values() for cell in column.values()
     )
     return f"{record.doc.pre_text} {record.doc.post_text} {table_text}"
 
@@ -88,14 +86,18 @@ def test_ipg_row_labels_swapped_vs_dsl(train_records):
     assert purchased["october 1 - 31"] == 3824.0
     assert purchased["november 1 - 30"] == 1750.0
 
-    assert record.dialogue.conv_questions[0].lower().startswith(
-        "what was the total number of shares purchased in november"
+    assert (
+        record.dialogue.conv_questions[0]
+        .lower()
+        .startswith("what was the total number of shares purchased in november")
     )
     assert record.dialogue.executed_answers[0] == 3824.0
     assert record.dialogue.turn_program[0] == "3824"
 
-    assert record.dialogue.conv_questions[1].lower().startswith(
-        "and what was it in october"
+    assert (
+        record.dialogue.conv_questions[1]
+        .lower()
+        .startswith("and what was it in october")
     )
     assert record.dialogue.executed_answers[1] == 1750.0
     assert record.dialogue.turn_program[1] == "1750"

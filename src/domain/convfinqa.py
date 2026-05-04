@@ -1,12 +1,15 @@
-"""Domain models for the cleaned ConvFinQA dataset.
-"""
+"""Domain models for the cleaned ConvFinQA dataset."""
 
 from pydantic import BaseModel, Field
 
 
 class Document(BaseModel):
-    pre_text: str = Field(description="Narrative text appearing before the table on the source page.")
-    post_text: str = Field(description="Narrative text appearing after the table on the source page.")
+    pre_text: str = Field(
+        description="Narrative text appearing before the table on the source page."
+    )
+    post_text: str = Field(
+        description="Narrative text appearing after the table on the source page."
+    )
     table: dict[str, dict[str, float | str | int]] = Field(
         description="Table as a nested dict. Outer key is the column label (typically a year); "
         "inner dict maps row label to cell value. Cells may be non-numeric where cleaning could not coerce them."
@@ -43,11 +46,15 @@ class Features(BaseModel):
         description="True if duplicate column headers in the source table were not algorithmically resolved "
         "and instead suffixed (e.g. 'Revenue (1)', 'Revenue (2)')."
     )
-    has_non_numeric_values: bool = Field(description="True if any table cell remains non-numeric after cleaning.")
+    has_non_numeric_values: bool = Field(
+        description="True if any table cell remains non-numeric after cleaning."
+    )
 
 
 class ConvFinQARecord(BaseModel):
-    id: str = Field(description="Stable record id, e.g. 'Single_JKHY/2009/page_28.pdf-3'.")
+    id: str = Field(
+        description="Stable record id, e.g. 'Single_JKHY/2009/page_28.pdf-3'."
+    )
     doc: Document
     dialogue: Dialogue
     features: Features

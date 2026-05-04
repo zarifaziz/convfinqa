@@ -33,25 +33,25 @@ def write_transcript_md(path: Path, line: dict[str, Any]) -> None:
     # Section order mirrors what the model actually receives on the wire:
     # `system` first, then the `messages` list, then its tool_use response.
     section = f"""\
-# {line.get('record_id')} (turn {line.get('turn_idx')})
+# {line.get("record_id")} (turn {line.get("turn_idx")})
 
-**correct:** {line.get('correct')} &nbsp;&nbsp; **latency:** {line.get('latency_ms')} ms &nbsp;&nbsp; **gold:** `{line.get('gold')!r}` &nbsp;&nbsp; **question:** {line.get('question')}
+**correct:** {line.get("correct")} &nbsp;&nbsp; **latency:** {line.get("latency_ms")} ms &nbsp;&nbsp; **gold:** `{line.get("gold")!r}` &nbsp;&nbsp; **question:** {line.get("question")}
 
 ## System prompt
 
 ```
-{line.get('system_prompt', '')}
+{line.get("system_prompt", "")}
 ```
 
 ## Messages (prior turns + current question)
 
 {anthropic.render_messages_md(messages)}
-## Response — tool call ({tool_call.get('name')!r})
+## Response — tool call ({tool_call.get("name")!r})
 
-- **reasoning:** {parsed.get('reasoning')}
-- **calculation:** `{parsed.get('calculation')}`
-- **answer:** `{parsed.get('answer')}`
-- **unit:** `{parsed.get('unit')}`
+- **reasoning:** {parsed.get("reasoning")}
+- **calculation:** `{parsed.get("calculation")}`
+- **answer:** `{parsed.get("answer")}`
+- **unit:** `{parsed.get("unit")}`
 
 ---
 

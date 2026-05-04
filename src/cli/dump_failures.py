@@ -71,10 +71,12 @@ def _render_failure(failure: dict, record: ConvFinQARecord) -> str:
     questions = record.dialogue.conv_questions
     golds = record.dialogue.executed_answers
 
-    prior_block = "\n".join(
-        f"- t{i}: {questions[i]!r} → gold `{golds[i]!r}`"
-        for i in range(turn_idx)
-    ) or "_none_"
+    prior_block = (
+        "\n".join(
+            f"- t{i}: {questions[i]!r} → gold `{golds[i]!r}`" for i in range(turn_idx)
+        )
+        or "_none_"
+    )
 
     feats = record.features
     return f"""\
@@ -85,12 +87,12 @@ def _render_failure(failure: dict, record: ConvFinQARecord) -> str:
 **Prior turns:**
 {prior_block}
 
-**This turn (t{turn_idx}):** {failure['question']!r}
+**This turn (t{turn_idx}):** {failure["question"]!r}
 
-- **gold:** `{failure['gold']!r}`
-- **predicted:** `{failure['predicted_answer']}` (unit `{failure['predicted_unit']}`, sign `{failure.get('predicted_sign_convention', '?')}`)
-- **calculation:** `{failure['predicted_calculation']}`
-- **reasoning:** {failure['predicted_reasoning']}
+- **gold:** `{failure["gold"]!r}`
+- **predicted:** `{failure["predicted_answer"]}` (unit `{failure["predicted_unit"]}`, sign `{failure.get("predicted_sign_convention", "?")}`)
+- **calculation:** `{failure["predicted_calculation"]}`
+- **reasoning:** {failure["predicted_reasoning"]}
 
 **Table:**
 

@@ -91,7 +91,9 @@ class Evaluator:
         concurrency: int = 1,
     ) -> EvalSummary:
         # Always log the effective seed so a "random" run is reproducible later.
-        effective_seed = seed if seed is not None else random.SystemRandom().randint(0, 2**31 - 1)
+        effective_seed = (
+            seed if seed is not None else random.SystemRandom().randint(0, 2**31 - 1)
+        )
         logger.info(f"sample seed: {effective_seed}")
 
         records = self._select_records(
@@ -113,7 +115,11 @@ class Evaluator:
         write_lock = threading.Lock()
         completed = 0
 
-        def _flush(record: ConvFinQARecord, record_rows: list[EvalRow], lines: list[dict[str, Any]]) -> None:
+        def _flush(
+            record: ConvFinQARecord,
+            record_rows: list[EvalRow],
+            lines: list[dict[str, Any]],
+        ) -> None:
             nonlocal completed
             with write_lock:
                 for line in lines:

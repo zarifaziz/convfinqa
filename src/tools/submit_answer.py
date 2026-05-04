@@ -35,11 +35,10 @@ class SubmitAnswer(BaseModel):
         # the whole eval run — log loudly and fall back to 'signed' (the safe
         # default for arithmetic-result questions, which dominate this dataset).
         if isinstance(v, str) and v not in ("magnitude", "signed", "n/a"):
-            logger.warning(
-                "sign_convention out of enum: {!r} → coerced to 'signed'", v
-            )
+            logger.warning("sign_convention out of enum: {!r} → coerced to 'signed'", v)
             return "signed"
         return v
+
     answer: str = Field(
         description=(
             "Final answer as a string. Numbers as plain digits "

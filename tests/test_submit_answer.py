@@ -67,7 +67,13 @@ def test_to_anthropic_tool_emits_expected_shape() -> None:
         "input_schema": {
             "type": "object",
             "additionalProperties": False,
-            "required": ["reasoning", "calculation", "sign_convention", "answer", "unit"],
+            "required": [
+                "reasoning",
+                "calculation",
+                "sign_convention",
+                "answer",
+                "unit",
+            ],
             "properties": {
                 "reasoning": {
                     "type": "string",

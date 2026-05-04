@@ -31,7 +31,9 @@ class _FakeLLMClient:
             raise RuntimeError("FakeLLMClient: no more canned responses")
         parsed = self._queue.popleft()
         idx = len(self.calls)
-        self.calls.append({"system": system, "messages": messages, "tool_model": tool_model})
+        self.calls.append(
+            {"system": system, "messages": messages, "tool_model": tool_model}
+        )
         return parsed, {
             "content": [
                 {

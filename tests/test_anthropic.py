@@ -119,7 +119,9 @@ def test_to_messages_tool_use_id_matches_tool_result_id() -> None:
 # ---------- parse_response ---------------------------------------------------
 
 
-def _raw(*, tool_use_id: str = "tu_1", tool_input=None, input_tokens=42, output_tokens=7) -> dict:
+def _raw(
+    *, tool_use_id: str = "tu_1", tool_input=None, input_tokens=42, output_tokens=7
+) -> dict:
     return {
         "content": [
             {
@@ -134,7 +136,12 @@ def _raw(*, tool_use_id: str = "tu_1", tool_input=None, input_tokens=42, output_
 
 
 def test_parse_response_returns_full_typed_result() -> None:
-    raw = _raw(tool_use_id="tu_abc", tool_input={"answer": "100", "unit": "raw"}, input_tokens=2000, output_tokens=150)
+    raw = _raw(
+        tool_use_id="tu_abc",
+        tool_input={"answer": "100", "unit": "raw"},
+        input_tokens=2000,
+        output_tokens=150,
+    )
     assert parse_response(raw) == AnthropicCallResult(
         tool_use_id="tu_abc",
         tool_input={"answer": "100", "unit": "raw"},
@@ -144,13 +151,18 @@ def test_parse_response_returns_full_typed_result() -> None:
 
 
 def test_parse_response_defaults_missing_usage_to_zero() -> None:
-    raw = {"content": [{"type": "tool_use", "id": "tu_1", "name": TOOL_NAME, "input": {}}]}
+    raw = {
+        "content": [{"type": "tool_use", "id": "tu_1", "name": TOOL_NAME, "input": {}}]
+    }
     result = parse_response(raw)
     assert result.tokens_in == 0 and result.tokens_out == 0
 
 
 def test_parse_response_raises_when_no_tool_use_block() -> None:
-    raw = {"content": [{"type": "text", "text": "hello"}], "usage": {"input_tokens": 1, "output_tokens": 1}}
+    raw = {
+        "content": [{"type": "text", "text": "hello"}],
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }
     with pytest.raises(RuntimeError, match="no tool_use block"):
         parse_response(raw)
 

@@ -31,8 +31,14 @@ app = typer.Typer(
 
 @app.command(name="eval")
 def eval_(
-    n: Optional[int] = typer.Option(None, "--n", help="Cap evaluation to N randomly-sampled records (no cap if omitted)."),
-    record_id: Optional[str] = typer.Option(None, "--record-id", help="Run a single record by id."),
+    n: Optional[int] = typer.Option(
+        None,
+        "--n",
+        help="Cap evaluation to N randomly-sampled records (no cap if omitted).",
+    ),
+    record_id: Optional[str] = typer.Option(
+        None, "--record-id", help="Run a single record by id."
+    ),
     split: str = typer.Option(
         "train",
         "--split",
@@ -42,8 +48,14 @@ def eval_(
             "tagged prompt-v0 / prompt-v1 / prompt-v2 measurement runs."
         ),
     ),
-    seed: Optional[int] = typer.Option(None, "--seed", help="RNG seed for sampling. If omitted, a fresh seed is generated and logged."),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Print every per-turn row in the summary table."),
+    seed: Optional[int] = typer.Option(
+        None,
+        "--seed",
+        help="RNG seed for sampling. If omitted, a fresh seed is generated and logged.",
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Print every per-turn row in the summary table."
+    ),
     concurrency: int = typer.Option(
         15,
         "--concurrency",
@@ -108,7 +120,9 @@ def _print_summary(summary: EvalSummary, *, verbose: bool) -> None:
         f"[bold]per-turn:[/bold] {pt['correct']}/{pt['n']} = {pt['accuracy']:.1%}    "
         f"[bold]per-conversation:[/bold] {pc['correct']}/{pc['n']} = {pc['accuracy']:.1%}"
     )
-    rich_print(f"[bold]by turn idx:[/bold] {_fmt_rate_curve(b['per_turn_idx_accuracy'])}")
+    rich_print(
+        f"[bold]by turn idx:[/bold] {_fmt_rate_curve(b['per_turn_idx_accuracy'])}"
+    )
     rich_print(
         f"[bold]conditional P(correct|prev correct):[/bold] "
         f"{_fmt_rate_curve(b['conditional_accuracy'])}"

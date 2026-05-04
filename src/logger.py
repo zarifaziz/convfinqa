@@ -14,7 +14,9 @@ _STDOUT_FORMAT = (
     "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> "
     "- <level>{message}</level>"
 )
-_FILE_FORMAT = "{time:YYYY-MM-DDTHH:mm:ssZ} | {level: <8} | {name}:{function}:{line} | {message}"
+_FILE_FORMAT = (
+    "{time:YYYY-MM-DDTHH:mm:ssZ} | {level: <8} | {name}:{function}:{line} | {message}"
+)
 
 
 def _utc_run_id() -> str:
@@ -27,7 +29,9 @@ def init_run(settings: Settings) -> Path:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     logger.remove()
-    logger.add(sys.stdout, level=settings.log_level, format=_STDOUT_FORMAT, colorize=True)
+    logger.add(
+        sys.stdout, level=settings.log_level, format=_STDOUT_FORMAT, colorize=True
+    )
     logger.add(
         run_dir / "run.log",
         level=settings.log_level,

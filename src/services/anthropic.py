@@ -58,9 +58,7 @@ def to_messages(turns: list[Turn], next_question: str) -> list[dict[str, Any]]:
     if not turns:
         return [{"role": "user", "content": next_question}]
 
-    messages: list[dict[str, Any]] = [
-        {"role": "user", "content": turns[0].question}
-    ]
+    messages: list[dict[str, Any]] = [{"role": "user", "content": turns[0].question}]
     for i, turn in enumerate(turns):
         messages.append(
             {

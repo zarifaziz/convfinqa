@@ -61,7 +61,10 @@ def summarize(
         "per_turn_idx_accuracy": _per_turn_idx_accuracy(rows),
         "conditional_accuracy": _conditional_accuracy(by_record),
         "accuracy_by_question_type": _accuracy_by_bool(
-            rows, lambda r: r.has_type2_question, true_label="type_ii", false_label="type_i"
+            rows,
+            lambda r: r.has_type2_question,
+            true_label="type_ii",
+            false_label="type_i",
         ),
         "accuracy_by_gold_format": _accuracy_by_gold_format(rows),
         "accuracy_by_doc_feature": {
@@ -169,9 +172,7 @@ def _accuracy_by_gold_format(rows: list[Any]) -> dict[str, dict[str, Any]]:
     )
 
 
-def _cost_block(
-    rows: list[Any], price_in: float, price_out: float
-) -> dict[str, Any]:
+def _cost_block(rows: list[Any], price_in: float, price_out: float) -> dict[str, Any]:
     tokens_in_total = sum(r.tokens_in for r in rows)
     tokens_out_total = sum(r.tokens_out for r in rows)
     usd_estimate = (
