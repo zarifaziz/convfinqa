@@ -29,6 +29,16 @@ Eval is **free-running**, not teacher-forced: each turn sees the model's own pri
 
 Cost reporting (token totals, USD estimate, mean latency by turn index, mean input tokens by turn index) ships in `summary.json` for every run. Pricing source: Sonnet 4.6 list price, $3/MTok input, $15/MTok output, configured via `AnthropicSettings`.
 
+## Dev measurement manifest
+
+Append-only. Dev is the held-out measurement set; the table below records every prompt version measured against it. Iteration is driven by **train** failure analysis between rows; dev failures are not consulted to choose interventions. Hard cap at v2.
+
+| Version | Prompt git tag | Seed | Per-turn | Per-conv | USD | Wall | Notes |
+|---|---|---|---|---|---|---|---|
+| v0 | `prompt-v0` | 1002385739 | _pending_ | _pending_ | _pending_ | _pending_ | Baseline, full dev (421 records) |
+| v1 | `prompt-v1` | 1002385739 | _pending_ | _pending_ | _pending_ | _pending_ | After Phase 2.5 train iteration |
+| v2 | `prompt-v2` | 1002385739 | _pending_ | _pending_ | _pending_ | _pending_ | Optional second iteration cycle |
+
 ## Intermediary findings (n=50 dev sample, seed=1002385739)
 
 | Metric | Value |
