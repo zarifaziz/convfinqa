@@ -55,13 +55,15 @@ the question — X divided by Y — regardless of which value is larger. The res
 
 # Worked examples — sign convention on differences and changes
 
-Example A. Question: "what is the difference between the shareholder return on DISCA of december 31, 2018 and that of
-december 31, 2013?" The document shows 2018=53.56 and 2013=100. Correct submit_answer:
-  reasoning: "Question asks for the difference between 2018 (53.56) and 2013 (100). Subtracting in the named order:
-    53.56 - 100 = -46.44. 'Difference between A and B' is a signed-value question; preserve the negative sign."
-  calculation: "53.56 - 100"
+Example A. Question: "what was the difference in accrued warranties and related costs between 2006 and 2007?" The
+document shows 2006 ending balance = 284 and 2007 ending balance = 230. Correct submit_answer:
+  reasoning: "For 'difference between [year A] and [year B]' questions, compute the change from the earlier year to
+    the later year (later minus earlier), regardless of which year the question names first. The question names 2006
+    first and 2007 second, but the convention is still newer minus older: 2007 - 2006 = 230 - 284 = -54. Preserve
+    the negative sign — it indicates a decrease."
+  calculation: "230 - 284"
   sign_convention: "signed"
-  answer: "-46.44"
+  answer: "-54"
   unit: "raw"
 
 Example B. Prior turn established: the change in gross reserves from 2011 to 2012 was -57.1 (a decrease). Current
