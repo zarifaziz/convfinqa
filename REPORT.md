@@ -33,11 +33,11 @@ Cost reporting (token totals, USD estimate, mean latency by turn index, mean inp
 
 Append-only. Dev is the held-out measurement set; the table below records every prompt version measured against it. Iteration is driven by **train** failure analysis between rows; dev failures are not consulted to choose interventions. Hard cap at v2.
 
-| Version | Prompt git tag | Seed | Per-turn | Per-conv | USD | Wall | Notes |
-|---|---|---|---|---|---|---|---|
-| v0 | `prompt-v0` | 1002385739 | 83.5% (1244/1490) | 73.6% (310/421) | $19.04 | 72 min | Baseline, full dev (421 records). Type I 85.7% / Type II 78.1%. `has_duplicate_columns` 67.2% (n=64) — flagged. |
-| v1 | `prompt-v1` | 1002385739 | 82.7% (1229/1486) | 72.6% (305/420) | $20.88 | 78 min | Phase 2.5 v1: AAPL/RE few-shot for sign convention. **−0.8pt vs v0** — train +0.5pt did not transfer. 420/421 records (`Single_STT/2011/page_83.pdf-2` hung on SDK call, killed; bound impact <0.5pt). |
-| v2 | `prompt-v2` | 1002385739 | _aborted_ | _aborted_ | ~$10 sunk | n/a | Enabled extended thinking (`thinking_enabled=True`, budget=2048). Two harness failures in succession: (i) 429 input-TPM rate-limit at `concurrency=15` — thinking widens the open-window per request beyond what the v0/v1 default tolerated; (ii) on retry at `concurrency=8`, the API forces `tool_choice="auto"` whenever thinking is on (forced "tool"/"any" both rejected), and the model skipped the tool on a multi-turn record (returned a text answer referencing the prior turn instead of a `submit_answer` block). Partial n=59 records before the second crash: **81.1% per-turn (172/212), trending −2.4pt vs v0** — within the n=212 95% CI but directionally consistent with v1's −0.8pt. Experiment aborted; reverted to thinking-off. |
+| Version | Seed | Per-turn | Per-conv | USD | Wall | Notes |
+|---|---|---|---|---|---|---|
+| v0 | 1002385739 | 83.5% (1244/1490) | 73.6% (310/421) | $19.04 | 72 min | Baseline, full dev (421 records). Type I 85.7% / Type II 78.1%. `has_duplicate_columns` 67.2% (n=64) — flagged. |
+| v1 | 1002385739 | 82.7% (1229/1486) | 72.6% (305/420) | $20.88 | 78 min | Phase 2.5 v1: AAPL/RE few-shot for sign convention. **−0.8pt vs v0** — train +0.5pt did not transfer. 420/421 records (`Single_STT/2011/page_83.pdf-2` hung on SDK call, killed; bound impact <0.5pt). |
+| v2 | 1002385739 | _aborted_ | _aborted_ | ~$10 sunk | n/a | Enabled extended thinking (`thinking_enabled=True`, budget=2048). Two harness failures in succession: (i) 429 input-TPM rate-limit at `concurrency=15` — thinking widens the open-window per request beyond what the v0/v1 default tolerated; (ii) on retry at `concurrency=8`, the API forces `tool_choice="auto"` whenever thinking is on (forced "tool"/"any" both rejected), and the model skipped the tool on a multi-turn record (returned a text answer referencing the prior turn instead of a `submit_answer` block). Partial n=59 records before the second crash: **81.1% per-turn (172/212), trending −2.4pt vs v0** — within the n=212 95% CI but directionally consistent with v1's −0.8pt. Experiment aborted; reverted to thinking-off. |
 
 ## Intermediary findings (n=50 dev sample, seed=1002385739)
 
@@ -64,9 +64,9 @@ Three failure clusters surfaced; phase 4 will quantify them on the full-dev pred
 
 Clusters 1 and 3 are model-side; cluster 2 is data-side. The dominant intervention from here is on the model side — a prompt-engineering pass that primes financial-statement reading conventions and forces an explicit "magnitude vs signed" decision before extraction. Phase 4 will quantify the share of each cluster on full-dev so the prompt iteration is aimed at the dominant mode rather than the most memorable one.
 
-## Error analysis (n=100 train, prompt-v1)
+## Error analysis (n=100 train, v1)
 
-Train n=100 (seed `1002385739`) on `prompt-v1` produced 53 failed turns of 365. Hand-classification:
+Train n=100 (seed `1002385739`) on v1 produced 53 failed turns of 365. Hand-classification:
 
 **Data-side failures unrecoverable from input (16 of 53, 30%).** Four records have golds that cannot be derived from the cleaned `pre_text + table + post_text`. Each is pinned as a failing-by-design test in [tests/repository/test_dataset_quality.py](tests/repository/test_dataset_quality.py):
 - `Double_AWK/2013/page_123.pdf` (5 turns) — gold values `3734`, `2059` appear nowhere in the document; cleaning lost the per-year breakdown rows.
