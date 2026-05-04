@@ -62,9 +62,12 @@ class AnthropicClient:
             "tool_choice": {"type": "tool", "name": tool_dict["name"]},
         }
         if self._thinking_enabled:
-            # tool_choice "tool" is rejected with thinking; "any" still forces
-            # a tool call when only one tool is registered.
-            kwargs["tool_choice"] = {"type": "any"}
+            # API rejects any forced tool_choice ("tool" or "any") with thinking
+            # enabled — only "auto" is allowed. We rely on the single registered
+            # tool plus the system-prompt instruction to coerce a tool_use block;
+            # if the model returns text instead, the missing-tool_use guard below
+            # raises a hard error rather than silently skipping the turn.
+            kwargs["tool_choice"] = {"type": "auto"}
             kwargs["thinking"] = {
                 "type": "enabled",
                 "budget_tokens": self._thinking_budget,
