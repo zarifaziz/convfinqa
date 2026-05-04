@@ -36,7 +36,7 @@ Append-only. Dev is the held-out measurement set; the table below records every 
 | Version | Prompt git tag | Seed | Per-turn | Per-conv | USD | Wall | Notes |
 |---|---|---|---|---|---|---|---|
 | v0 | `prompt-v0` | 1002385739 | 83.5% (1244/1490) | 73.6% (310/421) | $19.04 | 72 min | Baseline, full dev (421 records). Type I 85.7% / Type II 78.1%. `has_duplicate_columns` 67.2% (n=64) — flagged. |
-| v1 | `prompt-v1` | 1002385739 | _pending_ | _pending_ | _pending_ | _pending_ | After Phase 2.5 train iteration |
+| v1 | `prompt-v1` | 1002385739 | 82.7% (1229/1486) | 72.6% (305/420) | $20.88 | 78 min | Phase 2.5 v1: AAPL/RE few-shot for sign convention. **−0.8pt vs v0** — train +0.5pt did not transfer. 420/421 records (`Single_STT/2011/page_83.pdf-2` hung on SDK call, killed; bound impact <0.5pt). |
 | v2 | `prompt-v2` | 1002385739 | _pending_ | _pending_ | _pending_ | _pending_ | Optional second iteration cycle |
 
 ## Intermediary findings (n=50 dev sample, seed=1002385739)
@@ -96,4 +96,4 @@ Outputs land in `runs/<UTC-timestamp>/`. `predictions.jsonl` is the per-turn det
 
 ## AI tool usage
 
-Built with Claude Code as a pair-programming assistant, under explicit project-level conventions in `CLAUDE.md` and `CLAUDE.local.md`. The conventions are load-bearing: TDD, small reviewable changes, no AI-tells in checked-in content, no docstrings on the obvious. Sub-agents were used for parallel research (Anthropic API contract validation, metrics-math audit, code review) and for exploratory fan-out, but every line of code in `src/` was reviewed before commit. Plans in `plans/` were drafted collaboratively and edited; decisions in `docs/decisions.md` are the durable record of the calls made.
+Built with Claude Code as a pair-programming assistant, under explicit project-level conventions in `CLAUDE.md` and `CLAUDE.local.md`. The conventions are load-bearing: TDD, small reviewable changes, no verbose docstrings. Sub-agents were used for parallel research (Anthropic API contract validation, metrics-math audit, code review) and for exploratory fan-out, but every line of code in `src/` was reviewed before commit.
