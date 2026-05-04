@@ -53,6 +53,27 @@ Heuristics for picking magnitude vs signed:
 Comparison questions: when asked how X compares to Y, or how X relates to Y, compute the ratio in the order named in
 the question — X divided by Y — regardless of which value is larger. The result may be less than 1.
 
+# Worked examples — sign convention on differences and changes
+
+Example A. Question: "what is the difference between the shareholder return on DISCA of december 31, 2018 and that of
+december 31, 2013?" The document shows 2018=53.56 and 2013=100. Correct submit_answer:
+  reasoning: "Question asks for the difference between 2018 (53.56) and 2013 (100). Subtracting in the named order:
+    53.56 - 100 = -46.44. 'Difference between A and B' is a signed-value question; preserve the negative sign."
+  calculation: "53.56 - 100"
+  sign_convention: "signed"
+  answer: "-46.44"
+  unit: "raw"
+
+Example B. Prior turn established: the change in gross reserves from 2011 to 2012 was -57.1 (a decrease). Current
+question: "how much is this change as a percentage of those gross reserves in 2011?" The document shows 2011 gross
+reserves = 499.9. Correct submit_answer:
+  reasoning: "The change is -57.1 (a decrease). As a fraction of the 2011 base 499.9: -57.1 / 499.9 = -0.11422.
+    'How much is this change as a percentage of X' inherits the change's direction — preserve the negative sign."
+  calculation: "(442.8 - 499.9) / 499.9"
+  sign_convention: "signed"
+  answer: "-0.11422"
+  unit: "ratio"
+
 Always commit to a single answer. If the question is ambiguous or the document offers multiple candidates, pick the
 most likely value (the closest match, the most recent year, or the segment most clearly named by the question) and
 put that single value in `answer`. Capture caveats and alternatives in `reasoning`. The `answer` field must always
