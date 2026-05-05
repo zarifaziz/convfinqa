@@ -11,8 +11,6 @@ def summarize(
     price_per_mtok_output: float = 0.0,
 ) -> dict[str, Any]:
     rows = list(rows)
-    if not rows:
-        return _empty_summary()
 
     by_record: dict[str, list[Any]] = defaultdict(list)
     for r in rows:
@@ -25,6 +23,25 @@ def summarize(
         1 for record_rows in by_record.values() if all(r.correct for r in record_rows)
     )
 
+    turn_idx_buckets: dict[int, list[bool]] = defaultdict(list)
+    for r in rows:
+        turn_idx_buckets[r.turn_idx].append(r.correct)
+    per_turn_idx = {
+        str(idx): _rate(sum(c), len(c)) for idx, c in sorted(turn_idx_buckets.items())
+    }
+
+    cond_buckets: dict[int, list[bool]] = defaultdict(list)
+    cond_indices: set[int] = set()
+    for record_rows in by_record.values():
+        for i in range(1, len(record_rows)):
+            cond_indices.add(i)
+            if record_rows[i - 1].correct:
+                cond_buckets[i].append(record_rows[i].correct)
+    conditional = {
+        str(idx): _rate(sum(cond_buckets[idx]), len(cond_buckets[idx]))
+        for idx in sorted(cond_indices)
+    }
+
     return {
         "n_turns": len(rows),
         "n_records": len(by_record),
@@ -32,15 +49,20 @@ def summarize(
         "n_records_all_correct": n_records_all_correct,
         "per_turn_accuracy": _rate(n_turns_correct, len(rows)),
         "per_conversation_accuracy": _rate(n_records_all_correct, len(by_record)),
-        "per_turn_idx_accuracy": _per_turn_idx_accuracy(rows),
-        "conditional_accuracy": _conditional_accuracy(by_record),
+        "per_turn_idx_accuracy": per_turn_idx,
+        "conditional_accuracy": conditional,
         "accuracy_by_question_type": _accuracy_by_bool(
             rows,
             lambda r: r.has_type2_question,
             true_label="type_ii",
             false_label="type_i",
         ),
-        "accuracy_by_gold_format": _accuracy_by_gold_format(rows),
+        "accuracy_by_gold_format": _accuracy_by_bool(
+            rows,
+            lambda r: isinstance(r.gold, str),
+            true_label="boolean",
+            false_label="numeric",
+        ),
         "accuracy_by_doc_feature": {
             "has_duplicate_columns": _accuracy_by_bool(
                 rows, lambda r: r.has_duplicate_columns
@@ -58,55 +80,6 @@ def _rate(correct: int, n: int) -> dict[str, Any]:
         "correct": correct,
         "n": n,
         "accuracy": (correct / n) if n else None,
-    }
-
-
-def _empty_summary() -> dict[str, Any]:
-    return {
-        "n_turns": 0,
-        "n_records": 0,
-        "n_turns_correct": 0,
-        "n_records_all_correct": 0,
-        "per_turn_accuracy": _rate(0, 0),
-        "per_conversation_accuracy": _rate(0, 0),
-        "per_turn_idx_accuracy": {},
-        "conditional_accuracy": {},
-        "accuracy_by_question_type": {"type_i": _rate(0, 0), "type_ii": _rate(0, 0)},
-        "accuracy_by_gold_format": {"numeric": _rate(0, 0), "boolean": _rate(0, 0)},
-        "accuracy_by_doc_feature": {
-            "has_duplicate_columns": {"true": _rate(0, 0), "false": _rate(0, 0)},
-            "has_non_numeric_values": {"true": _rate(0, 0), "false": _rate(0, 0)},
-        },
-        "cost": {
-            "tokens_in_total": 0,
-            "tokens_out_total": 0,
-            "usd_estimate": 0.0,
-            "total_seconds": 0.0,
-            "mean_latency_ms_by_turn_idx": {},
-            "mean_tokens_in_by_turn_idx": {},
-        },
-    }
-
-
-def _per_turn_idx_accuracy(rows: list[Any]) -> dict[str, dict[str, Any]]:
-    buckets: dict[int, list[bool]] = defaultdict(list)
-    for r in rows:
-        buckets[r.turn_idx].append(r.correct)
-    return {str(idx): _rate(sum(c), len(c)) for idx, c in sorted(buckets.items())}
-
-
-def _conditional_accuracy(by_record: dict[str, list[Any]]) -> dict[str, dict[str, Any]]:
-    """For each i >= 1, accuracy on records whose turn (i-1) was correct."""
-    cond_buckets: dict[int, list[bool]] = defaultdict(list)
-    cond_indices: set[int] = set()
-    for record_rows in by_record.values():
-        for i in range(1, len(record_rows)):
-            cond_indices.add(i)
-            if record_rows[i - 1].correct:
-                cond_buckets[i].append(record_rows[i].correct)
-    return {
-        str(idx): _rate(sum(cond_buckets[idx]), len(cond_buckets[idx]))
-        for idx in sorted(cond_indices)
     }
 
 
@@ -129,15 +102,6 @@ def _accuracy_by_bool(
         true_label: _rate(true_correct, true_n),
         false_label: _rate(false_correct, false_n),
     }
-
-
-def _accuracy_by_gold_format(rows: list[Any]) -> dict[str, dict[str, Any]]:
-    return _accuracy_by_bool(
-        rows,
-        lambda r: isinstance(r.gold, str),
-        true_label="boolean",
-        false_label="numeric",
-    )
 
 
 def _cost_block(rows: list[Any], price_in: float, price_out: float) -> dict[str, Any]:
