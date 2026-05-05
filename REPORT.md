@@ -2,15 +2,13 @@
 
 ## TL;DR
 
-- Frontier LLM (`claude-sonnet-4-6`) with native tool-use over a typed `submit_answer` tool, full conversation replay, no retrieval, no fine-tuning, no DSL. Headline on the 421-record dev split: **83.5% per-turn, 73.6% per-conversation** (free-running, $19.04 total, 72 min wall).
+- Frontier LLM (`claude-sonnet-4-6`) with native tool-use over a typed `submit_answer` tool, full conversation replay, no retrieval, no fine-tuning, no DSL. Headline on the 421-record dev split: **83.5% per-turn, 73.6% per-conversation** (free-running, \$19.04 total, 72 min wall).
 - The paper's "later turns are harder" finding (sec 5.3, fig 5) does not reproduce on a 2026 model. Conditional accuracy `P(t_i correct | t_{i-1} correct)` is flat at ~92% across t1–t5 — the marginal drop is compounding, not long-context degradation. That single result reshapes the future-work list.
 - Three error clusters dominate residual failure: upstream cleaned-table / gold misalignment (data-side), sign-vs-magnitude reasoning on financial cell conventions (model-side), and column / row selection on multi-column tables (renderer-side). Different fixes for each.
 
 ## Priorities
 
-This submission optimised for **quality > cost ≫ speed**. Latency is unbudgeted. Cost is bounded by "single full-dev run under $20" (came in at $19.04). Quality is the only metric being optimised against. The architectural decisions below are read against that ranking — a deployment with tight latency or per-call cost budgets resolves several of them differently (caching, model choice, ensemble use). The Production track in [Future work](#future-work) spells those out.
-
-Concrete consequence: **prompt caching is unimplemented in v1.** Sized estimate is ~60-75% input-cost reduction (full-dev $19 → ~$8-10; see [Strengths and limitations § Cost arithmetic](#cost-arithmetic-estimated-not-measured)) — a deliberate scope cut to keep the measurement loop boring during baseline iteration. First item on the production track.
+Optimised for **quality > cost ≫ speed**. Latency is unbudgeted. Cost was capped at one full-dev run under \$20 (came in at \$19.04). The architectural decisions below read against that ranking — a deployment with tight latency or per-call cost budgets resolves several of them differently (caching, model choice, ensemble use). The Production track in [Future work](#future-work) spells those out.
 
 ## Method
 
@@ -21,7 +19,7 @@ flowchart LR
   render --> sys[system prompt]
   hist[prior turns<br/>tool_use ↔ tool_result] --> msgs[messages]
   q[next question] --> msgs
-  sys --> ans[Answerer]
+  sys --> ans[AnswerService]
   msgs --> ans
   ans --> claude[[AnthropicClient<br/>claude-sonnet-4-6<br/>tool_choice: submit_answer]]
   claude --> parse[parse_response<br/>Pydantic validate]
@@ -34,17 +32,33 @@ End-to-end pipeline: load → render → prompt → forced tool-use → parse �
 
 Forced `tool_choice` collapses output parsing to schema validation: the response either parses against the Pydantic schema or fails loudly. The `LLMClient` and `DatasetRepository` are `Protocol`s; `AnthropicClient` and `JsonDatasetRepository` are the only adapters wired in. Tests substitute a `_FakeLLMClient` — no API key required. Predictions and per-call audit trails persist to `runs/<UTC-timestamp>/{predictions.jsonl, transcripts.jsonl, transcripts.md, summary.json}`.
 
-**Cleaning policy: do nothing.** Cells pass through verbatim. The dataset card markers (`'-'`, `'n/a'`, `'( in thousands )'`, `(1)`/`(2)` column suffixes) are semantically meaningful, not dirty — coercing them changes meaning. See [`docs/decisions.md`](docs/decisions.md). Validated empirically: dev breakdowns on `has_duplicate_columns` / `has_non_numeric_values` are tracked in every run.
+**Cleaning policy: do nothing.** Cells pass through verbatim, including `( in thousands )` unit hints, `'-'` / `'n/a'` markers, and `(1)`/`(2)` column suffixes — semantically meaningful, not dirty. Coercing them changes meaning. See [`docs/decisions.md`](docs/decisions.md). Validated empirically: dev breakdowns on `has_duplicate_columns` / `has_non_numeric_values` are tracked in every run.
 
-**Repo tour.** `src/domain/` — Pydantic types, no IO. `src/services/` — LLM seam (`anthropic.py`), answerer, evaluator, transcripts. `src/repository/` — dataset IO. `src/prompts/` — system prompt and renderers. `src/cli/` — `main.py` (eval) and `scripts.py` (`dump-failures`, `plot-results`). Tests mirror `src/`. One LLM provider, one tool. No god-files.
+A few non-obvious choices the dataset card drove: `turn_program` is treated as gold metadata, not a generation target (the DSL is paper-era; 2026 has structured outputs). Boolean (`yes`/`no`) golds are 4/1490 dev turns — easy to lose under a numeric-only metric, so they get a separate breakdown axis. `has_duplicate_columns` / `has_non_numeric_values` flags become breakdown axes rather than silent drops.
 
-**Data-shape gotchas spotted while reading the dataset card.** Each one shaped a decision visible in the code:
+The `inspect` subcommand replays one record's full dialogue against the same `AnswerService` path eval uses, so per-record reasoning is debuggable without spinning up a measurement run:
 
-- The 434-record test split advertised in the card is **absent** from the shipped JSON. Dev is the only held-out set — flagged in [Limitations](#limitations).
-- `turn_program` is provided per turn but is **gold metadata**, not a generation target. The DSL is paper-era; 2026 has structured outputs.
-- Boolean (`yes`/`no`) golds (4/1490 dev turns) are easy to lose under a numeric-only metric. They show up as a separate breakdown axis.
-- `has_duplicate_columns` and `has_non_numeric_values` flags exist on every record. Used as breakdown axes to validate the do-nothing cleaning policy, not silently dropped.
-- Some cleaned cells include `( in thousands )` unit hints. Kept as-is; the model uses them for scale resolution.
+```mermaid
+sequenceDiagram
+  participant U as user
+  participant CLI as main inspect &lt;record_id&gt;
+  participant Repo as JsonDatasetRepository
+  participant AS as AnswerService
+  participant LLM as AnthropicClient
+  U->>CLI: record_id, --split
+  CLI->>Repo: load_split(split)
+  Repo-->>CLI: ConvFinQARecord
+  CLI->>AS: answer_conversation(record)
+  loop each turn
+    AS->>LLM: messages + tool_choice: submit_answer
+    LLM-->>AS: tool_use(answer, calculation, reasoning)
+  end
+  AS-->>CLI: list[AnswerCall]
+  loop each (question, gold, call)
+    CLI->>CLI: compare_answer(predicted, gold)
+    CLI-->>U: ✓/✗ · gold · calc · reasoning · tokens
+  end
+```
 
 ## What changed from the paper
 
@@ -57,6 +71,7 @@ The 2022 paper is the obvious baseline; the assignment explicitly rules out blin
 | Teacher-forced eval (gold prior turns injected) | Free-running eval (model's own prior predictions replay) | Free-running matches deployment; teacher-forced hides cascade failure |
 | Exe Acc only | Exe Acc + per-conversation + conditional + per-turn-index | Conditional disambiguates cascade vs late-turn degradation; the others can't |
 | Custom encoder for table + text | Markdown rendering + verbatim cells | Cleaning policy validated empirically — see decisions.md |
+| FinQANet best, **68.9%** Exe Acc on dev (teacher-forced, with retrieval) | **83.5%** per-turn, **73.6%** per-conversation on dev (free-running) | +14.6pt despite stricter eval; human expert on a 200-record sample is 89.4 (paper, n=200) |
 
 ## Evaluation methodology
 
@@ -73,23 +88,9 @@ Eval is **free-running**, not teacher-forced: each turn sees the model's own pri
 
 `compare_answer` uses hybrid tolerance `max(tol_abs, tol_rel * |gold|)` with `tol_abs=1e-4`, `tol_rel=5e-3`. Rationale and trigger to revisit are in [`docs/decisions.md`](docs/decisions.md).
 
-Cost reporting (token totals, USD estimate, mean latency by turn index, mean input tokens by turn index) ships in `summary.json` for every run. Pricing source: Sonnet 4.6 list price, $3/MTok input, $15/MTok output, configured via `AnthropicSettings`.
+Cost reporting (token totals, USD estimate, mean latency by turn index, mean input tokens by turn index) ships in `summary.json` for every run. Pricing source: Sonnet 4.6 list price, \$3/MTok input, \$15/MTok output, configured via `AnthropicSettings`.
 
 ## Results
-
-### Anchored against paper + human baselines
-
-| Method | Per-turn Exe Acc |
-|---|---:|
-| GPT-3 answer-only (paper) | 24.1 |
-| GPT-3 CoT (paper) | 40.6 |
-| GPT-3 + DSL (paper) | 45.2 |
-| General crowd, n=200 (paper) | 46.9 |
-| FinQANet RoBERTa-large + retrieval (paper) | 68.9 |
-| **This work, v0 (full dev, free-running)** | **83.5** |
-| Human expert, n=200 (paper) | 89.4 |
-
-Caveat: paper rows are teacher-forced; v0 is free-running, which is harder. The numbers are not directly comparable — they are anchors, not a leaderboard claim.
 
 ### Late-turn behaviour: no collapse
 
@@ -115,8 +116,8 @@ Append-only. Dev is the held-out measurement set; iteration is driven by **train
 
 | Version | Seed | Per-turn | Per-conv | USD | Wall | Notes |
 |---|---|---|---|---|---|---|
-| v0 | 1002385739 | **83.5%** (1244/1490) | **73.6%** (310/421) | $19.04 | 72 min | Baseline. Type I 85.7% / Type II 78.1%. `has_duplicate_columns` 67.2% — flagged. **Headline.** |
-| v1 | 1002385739 | 82.7% (1229/1486) | 72.6% (305/420) | $20.88 | 78 min | Train-side prompt iteration; **regressed -0.8pt on dev**. The train delta did not transfer — train and dev distributions diverge on the failure modes the iteration was tuned against. |
+| v0 | 1002385739 | **83.5%** (1244/1490) | **73.6%** (310/421) | \$19.04 | 72 min | Baseline. Type I 85.7% / Type II 78.1%. `has_duplicate_columns` 67.2% — flagged. **Headline.** |
+| v1 | 1002385739 | 82.7% (1229/1486) | 72.6% (305/420) | \$20.88 | 78 min | Train-side prompt iteration; **regressed -0.8pt on dev**. The train delta did not transfer — train and dev distributions diverge on the failure modes the iteration was tuned against. |
 | v2 | 1002385739 | n/a | n/a | n/a | n/a | Extended-thinking variant; **aborted** — Anthropic SDK rejects `thinking` blocks combined with forced single-tool selection. Documented as a deliberate scope close, not a silent drop; the proper fix is a tool-interface redesign (see Production track). |
 
 The v0→v1 regression is itself a useful result. The iteration loop on train was real — Phase 2.5 added few-shot examples to teach the newer-minus-older convention, after train-side failure analysis. It just didn't generalise. That's the case the prompt-engineering literature warns about, and the dev manifest discipline is what surfaces it instead of letting it hide under a "we shipped v1" headline.
@@ -129,7 +130,7 @@ This shapes the future-work list. Time spent on context summarisation, retrieval
 
 ## Error analysis
 
-Three clusters dominate residual failure on dev. Each lives in a different layer; each warrants a different fix.
+Post-hoc reflection on dev failures. The clusters below informed the future-work list but did **not** drive design changes — the audit trail backs this. Train runs (n=50, n=100) carry `failures.md` and were the iteration substrate; dev runs do not. v1's prompt change came out of train-side analysis and then regressed on dev, exactly the train-vs-dev divergence the held-out discipline catches. v2 was an extended-thinking experiment, unrelated to clusters. Examples below are dev records, shown as final-state manifestation.
 
 ### Cluster 1 — Upstream cleaned-table / gold misalignment (data-side)
 
@@ -142,10 +143,6 @@ The cleaner deterministically maps parens → negative, faithful to one common 1
 ### Cluster 3 — Column / row selection on multi-column tables (renderer + prompt)
 
 `has_duplicate_columns=True` records score 67.2% (n=64), 18 points below the rest of dev. The model picks the wrong column or row when the markdown table has visually flat column boundaries — a rendering problem dressed up as a model problem. The fix vector is renderer-side first (HTML tables with explicit `<th scope="col">`, or row-major rendering with column repetition) before any prompt-side change. This cluster opens a future-work item the previous error analysis missed.
-
-### Cluster shape against priorities
-
-The three clusters split cleanly along the cost / speed / quality axes. Cluster 1 is **honesty cost** — surfacing it lowers the headline number but raises the report's signal. Cluster 2 is a **quality lever, cheap** — a prompt change with no latency or cost impact. Cluster 3 is a **quality lever, structural** — a renderer change costs engineering time but no per-call cost or latency. None of them require a model swap or fine-tune. That ordering is why the immediate-track future work is what it is.
 
 ## Strengths and limitations
 
@@ -167,7 +164,7 @@ The three clusters split cleanly along the cost / speed / quality axes. Cluster 
 
 #### Cost arithmetic (estimated, not measured)
 
-Full-dev v0 actuals: 5.0M input + 269k output tokens, $19.04, 72 min wall. The system block (rendered doc + instructions, ~2k of each ~3.4k-token call) is byte-stable across turns of one record and reused 3–4× within ~20s — well inside the 5-minute prompt-cache TTL. Routing it through Anthropic's prompt cache (cached read at $0.30/MTok — 10% of base) plausibly saves **~60–75% of input cost**, depending on how much of the prior-turn replay also lands inside the TTL. Sized estimate: full-dev cost drops from **$19 to ~$8–10**, with no quality impact and a small first-call latency overhead. Estimated, not measured — caching wasn't implemented in v1.
+Full-dev v0 actuals: 5.0M input + 269k output tokens, \$19.04, 72 min wall. The system block (rendered doc + instructions, ~2k of each ~3.4k-token call) is byte-stable across turns of one record and reused 3–4× within ~20s — well inside the 5-minute prompt-cache TTL. Routing it through Anthropic's prompt cache (cached read at \$0.30/MTok — 10% of base) plausibly saves **~60–75% of input cost**, depending on how much of the prior-turn replay also lands inside the TTL. Sized estimate: full-dev cost drops from **\$19 to ~\$8–10**, with no quality impact and a small first-call latency overhead. Estimated, not measured — caching wasn't implemented in v1.
 
 ## Future work
 
@@ -194,14 +191,12 @@ Ordered by the priority hierarchy a real deployment would set, not by failure-mo
 
 | Lever | Quality | Cost | Speed | When to deploy |
 |---|---|---|---|---|
-| Prompt caching | — | ↓↓ | ↑ (cached) | always |
-| Different model | ↑↑ | ↓ or ↑ | ↓ or ↑ | first move |
+| Prompt caching | — | ↓↓ | ↑ (cached) | now |
+| Different model | ↑↑ | ↓ or ↑ | ↓ or ↑ | now |
 | Extended thinking | ↑ | ↑ | ↓ | quality-priority only |
 | Ensemble / consensus | ↑↑ | ↑↑↑ | ↓↓ | regulated / high-stakes |
 | MIPROv2 / GEPA | ↑ | one-off | — | after model is fixed |
 | Fine-tuning | ↑ (small) | ↓ at scale | ↑ | high-volume + plateau |
-
-What this report deliberately does **not** propose: fine-tuning as a v1 move, custom retrieval, multi-provider abstraction in code, agentic planning. ConvFinQA documents are short (~675 tokens median) and reasoning is shallow (median 2–3 ops). The interesting engineering is honest evaluation, not architectural maximalism.
 
 ## Reproducing the run
 

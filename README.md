@@ -84,19 +84,19 @@ uv run pytest
 zarifaziz/
 ├── src/
 │   ├── domain/           # Pydantic models: Record, Conversation, Answer
-│   ├── services/         # Pipeline logic: Answerer, Evaluator, LLM client
+│   ├── services/         # Pipeline logic: AnswerService, Evaluator, LLM client
 │   ├── repository/       # Dataset loaders (JSON → domain objects)
 │   ├── prompts/          # System prompt + record→prompt rendering
 │   ├── tools/            # Anthropic tool-use schemas (submit_answer)
 │   ├── eval/             # Metric and breakdown functions
-│   ├── cli/              # Typer entrypoints (eval, dump-failures)
+│   ├── cli/              # Typer subcommands: main, eval, inspect, chat, scripts (dump-failures, plot-results)
 │   ├── settings.py       # pydantic-settings config (.env)
 │   └── logger.py         # Loguru + run-dir scaffolding
 ├── tests/                # Pytest suite (parsers, metrics, tool wiring)
 ├── data/                 # Cleaned ConvFinQA dataset
+├── figures/              # Charts referenced from REPORT.md
 ├── runs/                 # Timestamped evaluation outputs
 ├── docs/                 # Design notes (model selection, decisions)
-├── plans/                # Phase-by-phase build plan
 ├── REPORT.md             # Findings, error analysis, limitations
 └── pyproject.toml
 ```
