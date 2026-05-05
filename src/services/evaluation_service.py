@@ -119,17 +119,12 @@ class EvaluationService:
                     f"turns={len(record_rows)} correct={n_correct}/{len(record_rows)}"
                 )
 
-        if concurrency <= 1:
-            for record in records:
-                record_rows, lines = self._score_conversation(record)
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            futures = {pool.submit(self._score_conversation, r): r for r in records}
+            for future in as_completed(futures):
+                record = futures[future]
+                record_rows, lines = future.result()
                 _flush(record, record_rows, lines)
-        else:
-            with ThreadPoolExecutor(max_workers=concurrency) as pool:
-                futures = {pool.submit(self._score_conversation, r): r for r in records}
-                for future in as_completed(futures):
-                    record = futures[future]
-                    record_rows, lines = future.result()
-                    _flush(record, record_rows, lines)
 
         # Predictions land in completion order under concurrency; downstream
         # consumers should sort by (record_id, turn_idx) if they need input order.
