@@ -211,6 +211,8 @@ uv run main eval --n 50 --split train                    # smoke run
 uv run main eval --split dev                             # full dev (~75 min, ~$19)
 uv run main dump-failures runs/<UTC-ts> --split dev      # per-failure markdown for hand review
 uv run main plot-results runs/<UTC-ts>/summary.json      # report charts → figures/
+uv run main inspect "Double_MAS/2012/page_92.pdf"        # replay one record, predicted vs gold per turn
+uv run main chat "Double_MAS/2012/page_92.pdf"           # REPL over one record, history preserved
 ```
 
 Outputs land in `runs/<UTC-timestamp>/`. `predictions.jsonl` is the per-turn detail; `summary.json` is the aggregate; `transcripts.{jsonl,md}` is the per-call audit trail; `failures.md` is hand-readable for error analysis.

@@ -54,6 +54,16 @@ uv run main eval --split dev
 
 Each run writes to `runs/<UTC-timestamp>/` with `predictions.jsonl`, `summary.json`, and per-record transcripts.
 
+### Inspect or chat with a single record
+
+```bash
+# replay one record's full dialogue, pretty-print predicted vs gold per turn
+uv run main inspect "Double_MAS/2012/page_92.pdf"
+
+# free-form REPL over a record (history preserved across turns; `exit` to leave)
+uv run main chat "Double_MAS/2012/page_92.pdf"
+```
+
 ### Inspect failures
 
 ```bash
