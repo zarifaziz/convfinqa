@@ -9,6 +9,7 @@ need for elaborate output-format instructions.
 from src.domain import Document
 from src.prompts.render import render_document
 
+# Prompt Version v2
 _TASK = """\
 You are a financial-analyst assistant. Answer the user's question about the document below using only the information shown.
 Do arithmetic step-by-step. When ready, call the `submit_answer` tool exactly once with:

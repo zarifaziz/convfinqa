@@ -22,11 +22,6 @@ from src.tools.submit_answer import SubmitAnswer
 
 class AnswerCall(BaseModel):
     """One LLM call: parsed answer + everything needed to replay or audit it.
-
-    `latency_ms` is the wall time of the single `predict_with_tool` round-trip
-    that produced this call. `tokens_in` / `tokens_out` are pulled from the
-    provider's `usage` block. Both are per-call so late-turn cost (longer
-    replayed history) is visible in metrics, not averaged into a flat number.
     """
 
     predicted: PredictedAnswer
