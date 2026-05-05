@@ -18,14 +18,21 @@ On **FinanceBench** (separate, document-grounded QA) o3 leads (~90%), with GPT-5
 
 ## Decision
 
-Primary model: **Claude Opus 4.7**. Dev-iteration model: **Claude Haiku 4.5**.
+Primary model: **Claude Sonnet 4.6**. Same model used for dev iteration and full measurement runs.
 
-Rationale:
+Initial pick was **Opus 4.7** on the strength of the table above, with **Haiku 4.5** as a cheaper dev-iteration tier. Walked back both before the first full-dev run:
 
-- Anthropic SDK is the stated default for this repo, so a single-provider setup avoids defending a multi-provider comparison in the report.
-- Best accuracy-per-token in the top tier (~3 points behind GPT-5 at ~1/8 the tokens), which matters across an eval harness over hundreds of examples.
-- Native tool use and structured outputs are mature, suiting the Program-of-Thought approach (model emits Python, executor runs it).
-- Extended thinking is a clean config knob, supporting a defensible "thinking on vs. off" ablation.
+- **Opus was too expensive at this volume.** A full-dev run is ~5M input + ~270k output tokens across 421 records. Opus 4.7 list pricing put a single run well above the self-imposed $20 cost cap. Sonnet 4.6 came in at $19.04 (under cap); FinanceReasoning accuracy is a few points lower than Opus — acceptable trade against the cost delta.
+- **No separate dev-iteration tier needed.** Sonnet is cheap enough to iterate against directly. Adding Haiku would have introduced a quality / behaviour mismatch between iteration and measurement runs without a meaningful cost saving.
+
+Carried over from the original rationale:
+
+- Single-provider (Anthropic SDK) setup avoids defending a multi-provider comparison in the report.
+- Native tool use and structured outputs suit the typed `submit_answer` approach.
+
+Dropped from the original rationale:
+
+- Extended thinking. Attempted in v2; aborted because the Anthropic SDK rejects `thinking` blocks combined with forced single-tool selection. Documented in REPORT.md → Future work.
 
 ## Sources
 
