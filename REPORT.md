@@ -2,13 +2,15 @@
 
 ## TL;DR
 
+This was a really fun and interesting project to work on.
+
 - Frontier LLM (`claude-sonnet-4-6`) with native tool-use over a typed `submit_answer` tool, full conversation replay, no retrieval, no fine-tuning, no DSL. Headline on the 421-record dev split: **83.5% per-turn, 73.6% per-conversation** (free-running, \$19.04 total, 72 min wall).
 - The paper's "later turns are harder" finding (sec 5.3, fig 5) does not reproduce on a 2026 model. Conditional accuracy `P(t_i correct | t_{i-1} correct)` is flat at ~92% across t1–t5 — the marginal drop is compounding, not long-context degradation. That single result reshapes the future-work list.
 - Three error clusters dominate residual failure: upstream cleaned-table / gold misalignment (data-side), sign-vs-magnitude reasoning on financial cell conventions (model-side), and column / row selection on multi-column tables (renderer-side). Different fixes for each.
 
 ## Priorities
 
-Optimised for **quality > cost ≫ speed**. Latency is unbudgeted. Cost was capped at one full-dev run under \$20 (came in at \$19.04). The architectural decisions below read against that ranking — a deployment with tight latency or per-call cost budgets resolves several of them differently (caching, model choice, ensemble use). The Production track in [Future work](#future-work) spells those out.
+Optimised for **quality > cost ≫ speed**. Latency is unbudgeted. Cost was capped at one full-dev run under \$20 (came in at \$19.04). A deployment with different priorities would resolve several of these calls differently — caching, model choice, ensemble use. More in [Future work](#future-work).
 
 ## Method
 
@@ -84,7 +86,7 @@ Four metrics on the dev split, each reported with sample size alongside the rate
 
 Three breakdowns surface the dataset's known difficulty axes: **Type I vs Type II** (paper sec 5.3, 6.3 calls Type II harder), **numeric vs boolean** gold format (different reasoning paths), and `has_duplicate_columns` / `has_non_numeric_values` (validates the cleaning policy on flagged records).
 
-Eval is **free-running**, not teacher-forced: each turn sees the model's own prior predictions in the replayed history. This is stricter than the paper baselines, which inject gold prior turns — so the headline number is not directly comparable to the 45–69% Exe Acc figures in [`dataset.md`](dataset.md). Free-running is the deployment-shaped metric; teacher-forced isolates per-turn skill but hides compounding.
+Eval is **free-running**, not teacher-forced: each turn sees the model's own prior predictions in the replayed history. This is stricter than the paper baselines, which inject gold prior turns — so the headline number is not directly comparable to the 45–69% Exe Acc figures in [`dataset.md`](dataset.md). Free-running matches what deployment looks like; teacher-forced isolates per-turn skill but hides compounding.
 
 `compare_answer` uses hybrid tolerance `max(tol_abs, tol_rel * |gold|)` with `tol_abs=1e-4`, `tol_rel=5e-3`. Rationale and trigger to revisit are in [`docs/decisions.md`](docs/decisions.md).
 
@@ -102,13 +104,13 @@ Both curves are essentially flat across conversation depth. Conditional accuracy
 
 ![Accuracy by breakdown axis](figures/breakdowns.png)
 
-The expected axes show up: Type II (multi-question composition) is 7–8 points harder than Type I; `has_duplicate_columns=True` records are the worst slice at 67.2% (n=64), 18 points below the rest of dev. The duplicate-columns gap is the empirical signal pointing at error cluster 3 below.
+The expected axes show up: Type II (multi-question composition) is 7–8 points harder than Type I; `has_duplicate_columns=True` records are the worst slice at 67.2% (n=64), 18 points below the rest of dev. That gap is what surfaces error cluster 3 below.
 
 ### Cost and token growth
 
 ![Mean input tokens by turn index](figures/tokens_by_turn.png)
 
-Input tokens grow from 3.0k at t0 to 4.4k by t5 — the system block (doc + instructions, ~2k tokens) is byte-stable across turns of one record but re-tokenised on every call. That's the empirical justification for prompt caching as the first production-track lever.
+Input tokens grow from 3.0k at t0 to 4.4k by t5 — the system block (doc + instructions, ~2k tokens) is byte-stable across turns of one record but re-tokenised on every call. That's the case for prompt caching, on its own.
 
 ### Dev measurement manifest
 
@@ -118,7 +120,7 @@ Append-only. Dev is the held-out measurement set; iteration is driven by **train
 |---|---|---|---|---|---|---|
 | v0 | 1002385739 | **83.5%** (1244/1490) | **73.6%** (310/421) | \$19.04 | 72 min | Baseline. Type I 85.7% / Type II 78.1%. `has_duplicate_columns` 67.2% — flagged. **Headline.** |
 | v1 | 1002385739 | 82.7% (1229/1486) | 72.6% (305/420) | \$20.88 | 78 min | Train-side prompt iteration; **regressed -0.8pt on dev**. The train delta did not transfer — train and dev distributions diverge on the failure modes the iteration was tuned against. |
-| v2 | 1002385739 | n/a | n/a | n/a | n/a | Extended-thinking variant; **aborted** — Anthropic SDK rejects `thinking` blocks combined with forced single-tool selection. Documented as a deliberate scope close, not a silent drop; the proper fix is a tool-interface redesign (see Production track). |
+| v2 | 1002385739 | n/a | n/a | n/a | n/a | Extended-thinking variant; **aborted** — Anthropic SDK rejects `thinking` blocks combined with forced single-tool selection. Documented rather than dropped; the fix is a tool-interface redesign (see [Future work](#future-work)). |
 
 The v0→v1 regression is itself a useful result. The iteration loop on train was real — Phase 2.5 added few-shot examples to teach the newer-minus-older convention, after train-side failure analysis. It just didn't generalise. That's the case the prompt-engineering literature warns about, and the dev manifest discipline is what surfaces it instead of letting it hide under a "we shipped v1" headline.
 
@@ -168,7 +170,7 @@ Full-dev v0 actuals: 5.0M input + 269k output tokens, \$19.04, 72 min wall. The 
 
 ## Future work
 
-### Immediate (given observed failure modes)
+### What I'd ship next
 
 1. **Prompt caching on the system block.** Cost lever; ~60–75% input-cost reduction estimated above. No quality impact, no implementation risk beyond cache-key hygiene. First lever to pull.
 2. **Domain-primed prompt pass for sign / magnitude (cluster 2).** Force the magnitude-vs-signed decision as an explicit step before extraction. Not a rule list (`if discount-rate then flip` doesn't generalise); a structural prompt move primed by parens-as-display vs parens-as-negative conventions.
@@ -177,7 +179,7 @@ Full-dev v0 actuals: 5.0M input + 269k output tokens, \$19.04, 72 min wall. The 
 5. **Tighter `compare_answer` for boolean golds.** A few boolean records have non-string golds; the metric currently dispatches on `isinstance(gold, str)`.
 6. **`calculate(expression)` tool with a return loop** — only if arithmetic errors materially exceed extraction errors. Currently calc-consistency (model's reported answer matches eval of its own calculation string) appears high by eyeball; verify before adding tool surface.
 
-### Production track (if quality / cost / speed priorities shifted)
+### If priorities shifted in production
 
 Ordered by the priority hierarchy a real deployment would set, not by failure-mode ROI:
 
@@ -201,7 +203,7 @@ Ordered by the priority hierarchy a real deployment would set, not by failure-mo
 ## Reproducing the run
 
 ```
-uv run pytest                                            # 58 tests
+uv run pytest                                            
 uv run main eval --n 50 --split train                    # smoke run
 uv run main eval --split dev                             # full dev (~75 min, ~$19)
 uv run main dump-failures runs/<UTC-ts> --split dev      # per-failure markdown for hand review
