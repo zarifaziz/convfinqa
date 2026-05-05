@@ -1,26 +1,9 @@
-"""Snapshot tests for the Anthropic adapter.
-
-Covers:
-  - `to_messages`: encodes turns + next question into the Anthropic
-    `messages` list (formerly `Conversation.to_anthropic_messages`).
-  - `parse_response`: parses a raw Anthropic response dump into a typed
-    `AnthropicCallResult` (formerly three scattered `_extract_*` helpers).
-  - `extract_tool_call`: pulls the `tool_use` block summary used by the
-    transcript writers.
-  - `render_messages_md`: human-readable rendering of the messages list.
-
-Asserts on full message lists / full result objects so any drift in the
-Anthropic block shape surfaces in a diff.
-"""
-
-import pytest
+"""Snapshot tests for the Anthropic wire-format helpers."""
 
 from src.domain import PredictedAnswer
 from src.domain.conversation import Turn
 from src.services.anthropic import (
-    AnthropicCallResult,
     extract_tool_call,
-    parse_response,
     render_messages_md,
     to_messages,
 )
@@ -116,68 +99,24 @@ def test_to_messages_tool_use_id_matches_tool_result_id() -> None:
     assert tool_use_id == tool_result_id == "abcd1234"
 
 
-# ---------- parse_response ---------------------------------------------------
+# ---------- extract_tool_call --------------------------------------------
 
 
-def _raw(
-    *, tool_use_id: str = "tu_1", tool_input=None, input_tokens=42, output_tokens=7
-) -> dict:
+def _raw_with_tool_use(tool_input: dict) -> dict:
     return {
         "content": [
             {
                 "type": "tool_use",
-                "id": tool_use_id,
+                "id": "tu_1",
                 "name": TOOL_NAME,
-                "input": tool_input or {"answer": "100"},
+                "input": tool_input,
             }
-        ],
-        "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+        ]
     }
-
-
-def test_parse_response_returns_full_typed_result() -> None:
-    raw = _raw(
-        tool_use_id="tu_abc",
-        tool_input={"answer": "100", "unit": "raw"},
-        input_tokens=2000,
-        output_tokens=150,
-    )
-    assert parse_response(raw) == AnthropicCallResult(
-        tool_use_id="tu_abc",
-        tool_input={"answer": "100", "unit": "raw"},
-        tokens_in=2000,
-        tokens_out=150,
-    )
-
-
-def test_parse_response_defaults_missing_usage_to_zero() -> None:
-    raw = {
-        "content": [{"type": "tool_use", "id": "tu_1", "name": TOOL_NAME, "input": {}}]
-    }
-    result = parse_response(raw)
-    assert result.tokens_in == 0 and result.tokens_out == 0
-
-
-def test_parse_response_raises_when_no_tool_use_block() -> None:
-    raw = {
-        "content": [{"type": "text", "text": "hello"}],
-        "usage": {"input_tokens": 1, "output_tokens": 1},
-    }
-    with pytest.raises(RuntimeError, match="no tool_use block"):
-        parse_response(raw)
-
-
-def test_parse_response_raises_when_tool_use_has_no_id() -> None:
-    raw = {"content": [{"type": "tool_use", "name": TOOL_NAME, "input": {}}]}
-    with pytest.raises(RuntimeError, match="no tool_use block"):
-        parse_response(raw)
-
-
-# ---------- extract_tool_call --------------------------------------------
 
 
 def test_extract_tool_call_pulls_name_and_input() -> None:
-    raw = _raw(tool_input={"answer": "yes"})
+    raw = _raw_with_tool_use({"answer": "yes"})
     assert extract_tool_call(raw) == {"name": TOOL_NAME, "input": {"answer": "yes"}}
 
 

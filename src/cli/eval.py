@@ -10,9 +10,9 @@ from rich.table import Table
 
 from src.logger import init_run
 from src.repository.convfinqa import JsonDatasetRepository
-from src.services.answerer import Answerer
-from src.services.evaluator import EvalSummary, Evaluator
-from src.services.llm_client import AnthropicClient
+from src.services.answer_service import AnswerService
+from src.services.anthropic import AnthropicClient
+from src.services.evaluation_service import EvalSummary, EvaluationService
 from src.settings import Settings
 
 
@@ -57,15 +57,15 @@ def eval_(
     run_dir = init_run(settings)
     logger.info(f"run dir: {run_dir}")
 
-    evaluator = Evaluator(
+    evaluation_service = EvaluationService(
         repo=JsonDatasetRepository(settings),
-        answerer=Answerer(llm=AnthropicClient(settings.anthropic)),
+        answer_service=AnswerService(llm=AnthropicClient(settings.anthropic)),
         tol_abs=settings.tol_abs,
         tol_rel=settings.tol_rel,
         price_per_mtok_input=settings.anthropic.price_per_mtok_input,
         price_per_mtok_output=settings.anthropic.price_per_mtok_output,
     )
-    summary = evaluator.run(
+    summary = evaluation_service.run(
         split=split,
         run_dir=run_dir,
         n=n,

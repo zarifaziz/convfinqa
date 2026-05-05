@@ -15,7 +15,7 @@ from src.eval.breakdowns import summarize
 from src.eval.metrics import compare_answer
 from src.repository.convfinqa import DatasetRepository
 from src.services import anthropic
-from src.services.answerer import AnswerCall, Answerer
+from src.services.answer_service import AnswerCall, AnswerService
 from src.services.transcripts import write_transcript, write_transcript_md
 
 
@@ -47,18 +47,18 @@ class EvalSummary(BaseModel):
     breakdown: dict[str, Any]
 
 
-class Evaluator:
+class EvaluationService:
     def __init__(
         self,
         repo: DatasetRepository,
-        answerer: Answerer,
+        answer_service: AnswerService,
         tol_abs: float,
         tol_rel: float,
         price_per_mtok_input: float = 0.0,
         price_per_mtok_output: float = 0.0,
     ) -> None:
         self._repo = repo
-        self._answerer = answerer
+        self._answer_service = answer_service
         self._tol_abs = tol_abs
         self._tol_rel = tol_rel
         self._price_in = price_per_mtok_input
@@ -174,7 +174,7 @@ class Evaluator:
         record: ConvFinQARecord,
     ) -> tuple[list[EvalRow], list[dict[str, Any]]]:
         """Score one record's conversation; return (rows, transcript_lines)."""
-        calls = self._answerer.answer_conversation(record)[1]
+        calls = self._answer_service.answer_conversation(record)[1]
 
         rows: list[EvalRow] = []
         lines: list[dict[str, Any]] = []

@@ -12,8 +12,8 @@ from rich.panel import Panel
 from src.domain import ConvFinQARecord, Conversation
 from src.prompts.render import render_document
 from src.repository.convfinqa import JsonDatasetRepository
-from src.services.answerer import Answerer
-from src.services.llm_client import AnthropicClient
+from src.services.answer_service import AnswerService
+from src.services.anthropic import AnthropicClient
 from src.settings import Settings
 
 
@@ -44,7 +44,7 @@ def chat_(
         console.print(render_document(record.doc))
         console.print()
 
-    answerer = Answerer(llm=AnthropicClient(settings.anthropic))
+    answer_service = AnswerService(llm=AnthropicClient(settings.anthropic))
     conv = Conversation()
 
     while True:
@@ -59,7 +59,7 @@ def chat_(
         if not message.strip():
             continue
 
-        turn, call = answerer.answer_turn(record.doc, conv.turns, message)
+        turn, call = answer_service.answer_turn(record.doc, conv.turns, message)
         conv.turns.append(turn)
 
         p = call.predicted

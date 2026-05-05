@@ -14,8 +14,8 @@ from src.domain import ConvFinQARecord
 from src.eval.metrics import compare_answer
 from src.prompts.render import render_document
 from src.repository.convfinqa import JsonDatasetRepository
-from src.services.answerer import Answerer
-from src.services.llm_client import AnthropicClient
+from src.services.answer_service import AnswerService
+from src.services.anthropic import AnthropicClient
 from src.settings import Settings
 
 
@@ -32,8 +32,8 @@ def inspect_(
     settings = Settings()
     record = _load_record(settings, split, record_id)
 
-    answerer = Answerer(llm=AnthropicClient(settings.anthropic))
-    _, calls = answerer.answer_conversation(record)
+    answer_service = AnswerService(llm=AnthropicClient(settings.anthropic))
+    _, calls = answer_service.answer_conversation(record)
 
     console = Console()
     console.print(

@@ -22,33 +22,9 @@ class AnswerCall(BaseModel):
     tokens_out: int
 
 
-class Answerer:
+class AnswerService:
     def __init__(self, llm: LLMClient) -> None:
         self._llm = llm
-
-    def answer_single(self, document: Document, question: str) -> AnswerCall:
-        system = build_system_prompt(document)
-        messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
-
-        t0 = time.perf_counter()
-        parsed, raw = self._llm.predict_with_tool(
-            system=system,
-            messages=messages,
-            tool_model=SubmitAnswer,
-        )
-        latency_ms = int((time.perf_counter() - t0) * 1000)
-        predicted = PredictedAnswer.model_validate(parsed.model_dump())
-        result = anthropic.parse_response(raw)
-
-        return AnswerCall(
-            predicted=predicted,
-            system_prompt=system,
-            messages=messages,
-            raw_response=raw,
-            latency_ms=latency_ms,
-            tokens_in=result.tokens_in,
-            tokens_out=result.tokens_out,
-        )
 
     def answer_turn(
         self,
@@ -61,14 +37,13 @@ class Answerer:
         messages = anthropic.to_messages(prior_turns, question)
 
         t0 = time.perf_counter()
-        parsed, raw = self._llm.predict_with_tool(
+        result = self._llm.predict_with_tool(
             system=system,
             messages=messages,
             tool_model=SubmitAnswer,
         )
         latency_ms = int((time.perf_counter() - t0) * 1000)
-        predicted = PredictedAnswer.model_validate(parsed.model_dump())
-        result = anthropic.parse_response(raw)
+        predicted = PredictedAnswer.model_validate(result.parsed.model_dump())
 
         turn = Turn(
             question=question,
@@ -79,12 +54,16 @@ class Answerer:
             predicted=predicted,
             system_prompt=system,
             messages=messages,
-            raw_response=raw,
+            raw_response=result.raw_response,
             latency_ms=latency_ms,
             tokens_in=result.tokens_in,
             tokens_out=result.tokens_out,
         )
         return turn, call
+
+    def answer_single(self, document: Document, question: str) -> AnswerCall:
+        _, call = self.answer_turn(document, [], question)
+        return call
 
     def answer_conversation(
         self, record: ConvFinQARecord

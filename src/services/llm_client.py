@@ -1,12 +1,18 @@
-"""LLM abstraction; AnthropicClient implementation with forced tool_choice."""
+"""Provider-agnostic LLM call abstraction."""
 
 from typing import Any, Protocol, runtime_checkable
 
-from anthropic import Anthropic
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
-from src.settings import AnthropicSettings
-from src.tools.submit_answer import to_anthropic_tool
+
+class LLMCallResult(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    parsed: BaseModel
+    tool_use_id: str
+    raw_response: dict[str, Any]
+    tokens_in: int
+    tokens_out: int
 
 
 @runtime_checkable
@@ -16,69 +22,4 @@ class LLMClient(Protocol):
         system: str,
         messages: list[dict[str, Any]],
         tool_model: type[BaseModel],
-    ) -> tuple[BaseModel, dict[str, Any]]: ...
-
-
-class AnthropicClient:
-    _MAX_TOKENS = 4096
-
-    def __init__(self, settings: AnthropicSettings) -> None:
-        # `max_retries=4`: SDK default is 2; at concurrency=15 we sit around
-        # half the input-TPM cap, so transient 429s on hot windows are
-        # expected. Backoff is exponential — worst-case wall hit ~30s, far
-        # cheaper than crashing the whole eval.
-        self._client = Anthropic(api_key=settings.api_key, max_retries=4)
-        self._model_name = settings.model_name
-        self._thinking_enabled = settings.thinking_enabled
-        self._thinking_budget = settings.thinking_budget_tokens
-
-    def predict_with_tool(
-        self,
-        system: str,
-        messages: list[dict[str, Any]],
-        tool_model: type[BaseModel],
-    ) -> tuple[BaseModel, dict[str, Any]]:
-        tool_dict = to_anthropic_tool(tool_model)
-
-        kwargs: dict[str, Any] = {
-            "model": self._model_name,
-            "max_tokens": self._MAX_TOKENS,
-            "system": system,
-            "messages": messages,
-            "tools": [tool_dict],
-            "tool_choice": {"type": "tool", "name": tool_dict["name"]},
-        }
-        if self._thinking_enabled:
-            # API rejects any forced tool_choice ("tool" or "any") with thinking
-            # enabled — only "auto" is allowed. We rely on the single registered
-            # tool plus the system-prompt instruction to coerce a tool_use block;
-            # if the model returns text instead, the missing-tool_use guard below
-            # raises a hard error rather than silently skipping the turn.
-            kwargs["tool_choice"] = {"type": "auto"}
-            kwargs["thinking"] = {
-                "type": "enabled",
-                "budget_tokens": self._thinking_budget,
-            }
-            # API requires max_tokens > budget_tokens; add the budget on top.
-            kwargs["max_tokens"] = self._MAX_TOKENS + self._thinking_budget
-
-        response = self._client.messages.create(**kwargs)
-
-        tool_use = next(
-            (block for block in response.content if block.type == "tool_use"),
-            None,
-        )
-        if tool_use is None:
-            raise RuntimeError(
-                f"Forced tool_choice but no tool_use block in response: {response.model_dump()}"
-            )
-        if not tool_use.input:
-            # Almost always: stop_reason='max_tokens' — model truncated mid-JSON.
-            raise RuntimeError(
-                f"Empty tool_use.input (stop_reason={response.stop_reason!r}, "
-                f"output tokens={response.usage.output_tokens}). Likely "
-                f"max_tokens cap; bump _MAX_TOKENS or shorten the schema."
-            )
-
-        parsed = tool_model.model_validate(tool_use.input)
-        return parsed, response.model_dump()
+    ) -> LLMCallResult: ...
