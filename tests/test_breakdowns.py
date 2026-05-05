@@ -1,9 +1,4 @@
-"""Snapshot tests for `summarize` — the metrics math the report depends on.
-
-Each rate is a `{correct, n, accuracy}` triple so sample sizes are visible
-alongside percentages. Tests assert on the full output dict to catch any
-silent shape drift.
-"""
+"""Snapshot tests for `summarize`; assert on the full output to catch shape drift."""
 
 import pytest
 from pydantic import BaseModel
