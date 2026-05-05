@@ -1,22 +1,4 @@
-"""Anthropic adapter — the one module that knows the Anthropic API shape.
-
-Every line that touches the Anthropic block taxonomy (`tool_use`,
-`tool_result`, `text`) and field names (`id`, `tool_use_id`, `input`,
-`usage.input_tokens`, ...) lives here. Callers stay provider-agnostic
-above this seam:
-
-  - `to_messages` builds the API `messages` list from completed turns
-    (encoder: structured turns -> request payload).
-  - `parse_response` reads a raw response dump into a typed
-    `AnthropicCallResult` (decoder: response payload -> structured fields).
-  - `extract_tool_call` returns the `tool_use` summary used by transcripts.
-  - `render_messages_md` renders a messages list for human-readable transcripts.
-
-Naming is deliberately Anthropic-specific (see `docs/decisions.md`,
-"Explicit provider naming over generic abstraction"). Adding a second
-provider means adding `<provider>.py` next to this file, not abstracting
-this one behind a Protocol.
-"""
+"""Anthropic wire format: message encoding, response decoding, transcript rendering."""
 
 from typing import Any
 
@@ -29,10 +11,6 @@ _TOOL_RESULT_ACK = "recorded"
 
 
 class AnthropicCallResult(BaseModel):
-    """Structured view of one Anthropic response. Pulled from `raw_response`
-    by `parse_response` so callers don't dig into nested dicts themselves.
-    """
-
     tool_use_id: str
     tool_input: dict[str, Any]
     tokens_in: int
@@ -43,18 +21,7 @@ class AnthropicCallResult(BaseModel):
 
 
 def to_messages(turns: list[Turn], next_question: str) -> list[dict[str, Any]]:
-    """Serialize completed `turns` plus a new `next_question` into the
-    Anthropic `messages` list shape.
-
-    Rules (any violation -> HTTP 400):
-      - User / assistant alternation.
-      - Each `tool_use` block followed by a `tool_result` with matching
-        `tool_use_id`.
-      - The next question rides as a second content block in the same user
-        message as the prior turn's `tool_result` (two consecutive user
-        messages also 400).
-      - The document is NOT in messages — it lives in the system prompt.
-    """
+    """Build the Anthropic `messages` list from completed turns plus the next question."""
     if not turns:
         return [{"role": "user", "content": next_question}]
 
@@ -96,12 +63,7 @@ def to_messages(turns: list[Turn], next_question: str) -> list[dict[str, Any]]:
 
 
 def parse_response(raw_response: dict[str, Any]) -> AnthropicCallResult:
-    """Parse a raw Anthropic response into the fields callers actually use.
-
-    Raises if no `tool_use` block with an `id` is present — without that id
-    the next turn cannot be replayed (would 400 on the API), so a missing
-    id is a hard error worth surfacing immediately.
-    """
+    """Parse a raw Anthropic response; raise if no tool_use block with an id is present."""
     tool_use_id: str | None = None
     tool_input: dict[str, Any] = {}
     for block in raw_response.get("content", []) or []:
@@ -124,12 +86,7 @@ def parse_response(raw_response: dict[str, Any]) -> AnthropicCallResult:
 
 
 def extract_tool_call(raw_response: dict[str, Any]) -> dict[str, Any] | None:
-    """Return `{name, input}` for the first `tool_use` block, or None.
-
-    Used by transcript writers — they want the tool call summary without
-    needing the full `AnthropicCallResult` (which would error on a response
-    that legitimately has no tool_use, e.g. future free-text responses).
-    """
+    """Return `{name, input}` for the first tool_use block, or None."""
     for block in raw_response.get("content", []) or []:
         if block.get("type") == "tool_use":
             return {"name": block.get("name"), "input": block.get("input")}
@@ -140,12 +97,7 @@ def extract_tool_call(raw_response: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def render_messages_md(messages: list[dict[str, Any]]) -> str:
-    """Render the messages list as readable markdown for `transcripts.md`.
-
-    Each message is one labelled block. `tool_use` shows the prior-turn
-    answer the model emitted; `tool_result` shows the synthetic ack;
-    `text` shows the question. Block-type knowledge stays in this file.
-    """
+    """Render a messages list as readable markdown for transcripts.md."""
     if not messages:
         return "_(none)_\n"
 

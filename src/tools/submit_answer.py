@@ -1,9 +1,4 @@
-"""The single tool the model is forced to call: `submit_answer`.
-
-The pydantic model defines the wire shape; `to_anthropic_tool` converts it
-into the dict Anthropic expects. Forcing tool-use eliminates regex over
-free-form prose — the response either parses or surfaces a hard error.
-"""
+"""SubmitAnswer tool schema and Anthropic tool-dict adapter."""
 
 import re
 from typing import Any, Literal
@@ -30,10 +25,7 @@ class SubmitAnswer(BaseModel):
     @field_validator("sign_convention", mode="before")
     @classmethod
     def _coerce_unknown(cls, v: object) -> object:
-        # Defensive coercion: if the model emits a value outside the enum
-        # (most common: confusion with `unit` and emitting 'ratio'), don't crash
-        # the whole eval run — log loudly and fall back to 'signed' (the safe
-        # default for arithmetic-result questions, which dominate this dataset).
+        # Coerce out-of-enum values to 'signed' so a single bad turn doesn't crash the eval.
         if isinstance(v, str) and v not in ("magnitude", "signed", "n/a"):
             logger.warning("sign_convention out of enum: {!r} → coerced to 'signed'", v)
             return "signed"
@@ -75,13 +67,7 @@ def _strip_pydantic_metadata(schema: dict[str, Any]) -> dict[str, Any]:
 
 
 def to_anthropic_tool(model: type[BaseModel]) -> dict[str, Any]:
-    """Convert a pydantic model into the Anthropic tool dict shape.
-
-    Pydantic emits richer JSON Schema than Anthropic needs (`title`, `$defs`).
-    We strip those, then pin `additionalProperties: False` so the model can't
-    invent extra fields — anything outside the schema becomes a hard error
-    rather than silently dropped data.
-    """
+    """Convert a pydantic model into the Anthropic tool dict; strip metadata, lock additionalProperties."""
     raw = model.model_json_schema()
     schema = _strip_pydantic_metadata(raw)
     schema["additionalProperties"] = False

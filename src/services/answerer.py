@@ -1,12 +1,4 @@
-"""Multi-turn answerer.
-
-`answer_single` handles a one-shot question (used for `peek` / smoke debug);
-`answer_conversation` walks a record's full dialogue, replaying prior turns
-each call so the model sees the alternating user/assistant/user history.
-
-Wire-format concerns (message serialization, response decoding) live in
-`anthropic`. This module is provider-agnostic above that seam.
-"""
+"""Multi-turn answer generation; wire format isolated in the anthropic module."""
 
 import time
 from typing import Any
@@ -21,9 +13,6 @@ from src.tools.submit_answer import SubmitAnswer
 
 
 class AnswerCall(BaseModel):
-    """One LLM call: parsed answer + everything needed to replay or audit it.
-    """
-
     predicted: PredictedAnswer
     system_prompt: str
     messages: list[dict[str, Any]]
@@ -61,47 +50,50 @@ class Answerer:
             tokens_out=result.tokens_out,
         )
 
+    def answer_turn(
+        self,
+        document: Document,
+        prior_turns: list[Turn],
+        question: str,
+    ) -> tuple[Turn, AnswerCall]:
+        """One LLM call: replay `prior_turns` then ask `question`."""
+        system = build_system_prompt(document)
+        messages = anthropic.to_messages(prior_turns, question)
+
+        t0 = time.perf_counter()
+        parsed, raw = self._llm.predict_with_tool(
+            system=system,
+            messages=messages,
+            tool_model=SubmitAnswer,
+        )
+        latency_ms = int((time.perf_counter() - t0) * 1000)
+        predicted = PredictedAnswer.model_validate(parsed.model_dump())
+        result = anthropic.parse_response(raw)
+
+        turn = Turn(
+            question=question,
+            tool_use_id=result.tool_use_id,
+            predicted=predicted,
+        )
+        call = AnswerCall(
+            predicted=predicted,
+            system_prompt=system,
+            messages=messages,
+            raw_response=raw,
+            latency_ms=latency_ms,
+            tokens_in=result.tokens_in,
+            tokens_out=result.tokens_out,
+        )
+        return turn, call
+
     def answer_conversation(
         self, record: ConvFinQARecord
     ) -> tuple[Conversation, list[AnswerCall]]:
-        """Walk every question in `record.dialogue`, replaying prior turns.
-
-        Returns the populated `Conversation` plus a list of `AnswerCall`s
-        (one per turn, ordered) so the caller can score and write transcripts.
-        """
-        system = build_system_prompt(record.doc)
+        """Walk every question in `record.dialogue`, replaying prior turns each call."""
         conv = Conversation()
         calls: list[AnswerCall] = []
-
         for question in record.dialogue.conv_questions:
-            messages = anthropic.to_messages(conv.turns, question)
-            t0 = time.perf_counter()
-            parsed, raw = self._llm.predict_with_tool(
-                system=system,
-                messages=messages,
-                tool_model=SubmitAnswer,
-            )
-            latency_ms = int((time.perf_counter() - t0) * 1000)
-            predicted = PredictedAnswer.model_validate(parsed.model_dump())
-            result = anthropic.parse_response(raw)
-
-            calls.append(
-                AnswerCall(
-                    predicted=predicted,
-                    system_prompt=system,
-                    messages=messages,
-                    raw_response=raw,
-                    latency_ms=latency_ms,
-                    tokens_in=result.tokens_in,
-                    tokens_out=result.tokens_out,
-                )
-            )
-            conv.turns.append(
-                Turn(
-                    question=question,
-                    tool_use_id=result.tool_use_id,
-                    predicted=predicted,
-                )
-            )
-
+            turn, call = self.answer_turn(record.doc, conv.turns, question)
+            conv.turns.append(turn)
+            calls.append(call)
         return conv, calls

@@ -1,30 +1,4 @@
-"""Headline metrics, per-turn-index curves, and report-grade breakdowns.
-
-Every rate in the output is a `{correct, n, accuracy}` triple so the report
-can quote sample sizes alongside percentages — small buckets need that
-context to be defensible.
-
-Headline metrics (each defended in the report):
-  - per-turn execution accuracy: standard ConvFinQA metric.
-  - per-conversation accuracy: every turn correct in a record. Catches
-    cascade failures the per-turn number hides.
-  - conditional accuracy P(turn_i correct | turn_{i-1} correct), per i.
-    Disambiguates cascade failure from intrinsic late-turn difficulty: a
-    flat curve points to cascade; a falling curve points to degradation.
-
-Tomoro-grade breakdowns:
-  - by question type (Type I / Type II) — paper sec 5.3/6.3 calls Type II
-    the harder subset; we report it explicitly.
-  - by gold format (numeric / boolean) — different reasoning paths in the
-    model; ~44/14k turns are boolean and would otherwise hide in the mean.
-  - by doc feature (`has_duplicate_columns`, `has_non_numeric_values`) —
-    validates the "do nothing" cleaning policy from the data plan.
-
-Cost block: token totals, USD estimate, total seconds, plus mean latency
-and mean input-tokens by turn index — the latter is the evidence that
-input-context grows with turn (motivating prompt caching as a future
-optimization).
-"""
+"""Headline metrics, per-turn-index curves, conditional accuracy, breakdowns, and cost."""
 
 from collections import defaultdict
 from typing import Any, Iterable
@@ -122,12 +96,7 @@ def _per_turn_idx_accuracy(rows: list[Any]) -> dict[str, dict[str, Any]]:
 
 
 def _conditional_accuracy(by_record: dict[str, list[Any]]) -> dict[str, dict[str, Any]]:
-    """For each i ≥ 1, accuracy on records whose turn (i-1) was correct.
-
-    Indices appear in the output for any i where some record has turn i —
-    so a missing key never happens silently. `n=0` (no record had prior
-    correct) is reported with `accuracy=None`.
-    """
+    """For each i >= 1, accuracy on records whose turn (i-1) was correct."""
     cond_buckets: dict[int, list[bool]] = defaultdict(list)
     cond_indices: set[int] = set()
     for record_rows in by_record.values():
@@ -163,7 +132,6 @@ def _accuracy_by_bool(
 
 
 def _accuracy_by_gold_format(rows: list[Any]) -> dict[str, dict[str, Any]]:
-    """Boolean = gold is a string ('yes'/'no'); numeric = gold is a float."""
     return _accuracy_by_bool(
         rows,
         lambda r: isinstance(r.gold, str),

@@ -1,9 +1,4 @@
-"""Typer CLI for the ConvFinQA pipeline.
-
-Subcommands:
-  - `eval` — score the model on a dataset split (full pipeline).
-  - `dump-failures` — turn a run's failed predictions into a hand-readable markdown.
-"""
+"""Typer CLI: eval, dump-failures, plot-results."""
 
 from typing import Optional
 
@@ -13,7 +8,7 @@ from rich import print as rich_print
 from rich.console import Console
 from rich.table import Table
 
-from src.cli.dump_failures import dump_failures
+from src.cli.scripts import dump_failures, plot_results
 from src.logger import init_run
 from src.repository.convfinqa import JsonDatasetRepository
 from src.services.answerer import Answerer
@@ -91,6 +86,7 @@ def eval_(
 
 
 app.command(name="dump-failures")(dump_failures)
+app.command(name="plot-results")(plot_results)
 
 
 def _print_summary(summary: EvalSummary, *, verbose: bool) -> None:

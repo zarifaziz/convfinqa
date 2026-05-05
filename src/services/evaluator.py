@@ -1,16 +1,4 @@
-"""Evaluator service.
-
-Owns the load -> answer -> score -> write loop. Depends on the
-`DatasetRepository` Protocol (not the concrete JSON repo) and an `Answerer`,
-so it's testable with a fake repo + fake LLM client.
-
-Writes three sibling files in the run dir:
-  - `transcripts.jsonl` / `transcripts.md` — one entry per LLM call, full
-    audit trail for replay.
-  - `predictions.jsonl` — one line per turn, lightweight grading record.
-  - `summary.json` — overall metrics + breakdowns (no per-row detail; that
-    lives in `predictions.jsonl`).
-"""
+"""Load, answer, score, and write evaluation outputs to a run directory."""
 
 import json
 import random
@@ -53,11 +41,6 @@ class EvalRow(BaseModel):
 
 
 class EvalSummary(BaseModel):
-    """Run output. `breakdown` is the full output of `summarize`; `rows` is
-    the per-turn detail (excluded when serialised to summary.json — that
-    detail lives in predictions.jsonl).
-    """
-
     split: str
     seed: int | None = None
     rows: list[EvalRow]
@@ -160,7 +143,6 @@ class Evaluator:
         summary = EvalSummary(
             split=split, seed=effective_seed, rows=rows, breakdown=breakdown
         )
-        # `summary.json` excludes the per-row detail (that's in predictions.jsonl).
         summary_path.write_text(
             json.dumps(summary.model_dump(exclude={"rows"}), indent=2) + "\n",
             encoding="utf-8",
@@ -191,11 +173,7 @@ class Evaluator:
         self,
         record: ConvFinQARecord,
     ) -> tuple[list[EvalRow], list[dict[str, Any]]]:
-        """Score one record's conversation; return (rows, transcript_lines).
-
-        Pure with respect to disk: caller flushes both lists to files under a
-        lock so concurrent runs don't interleave writes within a record.
-        """
+        """Score one record's conversation; return (rows, transcript_lines)."""
         calls = self._answerer.answer_conversation(record)[1]
 
         rows: list[EvalRow] = []
@@ -261,9 +239,7 @@ def _build_transcript_line(
     correct: bool,
     latency_ms: int,
 ) -> dict[str, Any]:
-    """Self-contained replay record. Includes the full system prompt and
-    raw response so a future debugger can re-run without the dataset.
-    """
+    """Build a replay record self-contained enough to re-run without the dataset."""
     tool_call = anthropic.extract_tool_call(call.raw_response)
     return {
         "record_id": record_id,

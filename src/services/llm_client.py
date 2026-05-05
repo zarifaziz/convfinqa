@@ -1,9 +1,4 @@
-"""LLM-call abstraction.
-
-`LLMClient` is the structural Protocol services depend on; `AnthropicClient`
-implements it against the Anthropic SDK with forced `tool_choice`. Tests
-substitute `FakeLLMClient` (in `tests/fakes/`) — no API key needed.
-"""
+"""LLM abstraction; AnthropicClient implementation with forced tool_choice."""
 
 from typing import Any, Protocol, runtime_checkable
 
@@ -25,14 +20,6 @@ class LLMClient(Protocol):
 
 
 class AnthropicClient:
-    """Thin Anthropic SDK wrapper with forced tool-choice. Implements `LLMClient`.
-
-    Forced `tool_choice` collapses output parsing to schema validation: the
-    response either carries a tool_use block matching the requested model or
-    raises a hard error worth seeing.
-    """
-
-    # Output cap
     _MAX_TOKENS = 4096
 
     def __init__(self, settings: AnthropicSettings) -> None:

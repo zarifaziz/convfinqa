@@ -1,25 +1,10 @@
-"""Render a `Document` into the markdown blob the model sees.
-
-Three labelled markdown sections — pre-text narrative, table, post-text
-narrative — concatenated. The cleaning policy is "do nothing": non-numeric
-cells (`'-'`, `'( in thousands )'`, `'nm'`) pass through verbatim because
-they carry signal the model needs (unit hints, "no value reported" markers).
-"""
+"""Render a Document into the markdown blob the model sees."""
 
 from src.domain import Document
 
 
 def render_table(table: dict[str, dict[str, float | str | int]]) -> str:
-    """Render the nested-dict table as a markdown table.
-
-    Faithful to the JSON shape: outer dict keys become column headers, inner
-    dict keys (the row labels) become the leftmost column. Cells are emitted
-    as-is — no coercion, no formatting beyond `str(value)`.
-
-    The first row label set is taken from the first column's inner dict; we
-    do not assume every column has the same row labels (some tables have
-    holes), so missing cells render as empty strings.
-    """
+    """Render the nested-dict table as a markdown table; missing cells render as empty strings."""
     headers = list(table.keys())
     first_col = next(iter(table.values()))
     row_labels = list(first_col.keys())

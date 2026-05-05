@@ -1,12 +1,3 @@
-"""Domain model for one model-emitted answer.
-
-Distinct from `SubmitAnswer` (the tool schema in `src/tools/`): that one is the
-wire format the LLM fills in; this is the runtime container the rest of the
-codebase passes around. Keeping them separate stops tool-schema concerns
-(JSON Schema enums, field descriptions, anthropic-flavoured types) from
-leaking into the domain layer.
-"""
-
 from pydantic import BaseModel, Field
 
 

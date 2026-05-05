@@ -1,10 +1,4 @@
-"""Build the system prompt that frames each LLM call.
-
-One pure function: take a `Document`, return the system message string. The
-prompt states the task, embeds the rendered document, and reminds the model
-to call the `submit_answer` tool. Tool-choice forcing handles the rest — no
-need for elaborate output-format instructions.
-"""
+"""System prompt for the financial-analysis task."""
 
 from src.domain import Document
 from src.prompts.render import render_document
