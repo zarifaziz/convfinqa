@@ -4,7 +4,7 @@
 
 This was a really fun and interesting project to work on.
 
-- Frontier LLM (`claude-sonnet-4-6`) with native tool-use over a typed `submit_answer` tool, full conversation replay, no retrieval, no fine-tuning, no DSL. Headline on the 421-record dev split: **83.5% per-turn, 73.6% per-conversation** (free-running, \$19.04 total, 72 min wall).
+- Frontier LLM (`claude-sonnet-4-6`) with native tool-use over a typed `submit_answer` tool, full conversation replay, no retrieval, no fine-tuning, no DSL. Headline on the 421-record dev split: **83.5% per-turn, 73.6% per-conversation** (\$19.04 total, 72 min wall).
 - The paper's "later turns are harder" finding (sec 5.3, fig 5) does not reproduce on a 2026 model. Conditional accuracy `P(t_i correct | t_{i-1} correct)` is flat at ~92% across t1–t5 — the marginal drop is compounding, not long-context degradation. That single result reshapes the future-work list.
 - Three error clusters dominate residual failure: upstream cleaned-table / gold misalignment (data-side), sign-vs-magnitude reasoning on financial cell conventions (model-side), and column / row selection on multi-column tables (renderer-side). Different fixes for each.
 
@@ -70,10 +70,9 @@ The 2022 paper is the obvious baseline; the assignment explicitly rules out blin
 |---|---|---|
 | DSL program is the generation target | DSL is eval metadata only; native tool-use emits a typed `submit_answer` | Structured outputs replaced custom DSLs; Pydantic + named fields are grep-able and testable |
 | Retriever-then-generator pipeline | No retriever; doc fits in the system prompt | Median doc is ~675 tokens — long context made retrieval gold-plating |
-| Teacher-forced eval (gold prior turns injected) | Free-running eval (model's own prior predictions replay) | Free-running matches deployment; teacher-forced hides cascade failure |
 | Exe Acc only | Exe Acc + per-conversation + conditional + per-turn-index | Conditional disambiguates cascade vs late-turn degradation; the others can't |
 | Custom encoder for table + text | Markdown rendering + verbatim cells | Cleaning policy validated empirically — see decisions.md |
-| FinQANet best, **68.9%** Exe Acc on dev (teacher-forced, with retrieval) | **83.5%** per-turn, **73.6%** per-conversation on dev (free-running) | +14.6pt despite stricter eval; human expert on a 200-record sample is 89.4 (paper, n=200) |
+| FinQANet best, **68.9%** Exe Acc on dev (with retrieval) | **83.5%** per-turn, **73.6%** per-conversation on dev | Eval setups differ (see [Evaluation methodology](#evaluation-methodology)); human expert on a 200-record sample is 89.4 (paper, n=200) |
 
 ## Evaluation methodology
 
@@ -86,7 +85,7 @@ Four metrics on the dev split, each reported with sample size alongside the rate
 
 Three breakdowns surface the dataset's known difficulty axes: **Type I vs Type II** (paper sec 5.3, 6.3 calls Type II harder), **numeric vs boolean** gold format (different reasoning paths), and `has_duplicate_columns` / `has_non_numeric_values` (validates the cleaning policy on flagged records).
 
-Eval is **free-running**, not teacher-forced: each turn sees the model's own prior predictions in the replayed history. This is stricter than the paper baselines, which inject gold prior turns — so the headline number is not directly comparable to the 45–69% Exe Acc figures in [`dataset.md`](dataset.md). Free-running matches what deployment looks like; teacher-forced isolates per-turn skill but hides compounding.
+Eval replays the model's own prior predictions as conversation history at each turn — matches what deployment looks like. The paper's exact eval protocol (whether prior gold answers are injected, omitted, or otherwise) isn't fully specified in the text, so the headline number isn't directly comparable to the 45–69% Exe Acc figures in [`dataset.md`](dataset.md).
 
 `compare_answer` uses hybrid tolerance `max(tol_abs, tol_rel * |gold|)` with `tol_abs=1e-4`, `tol_rel=5e-3`. Rationale and trigger to revisit are in [`docs/decisions.md`](docs/decisions.md).
 
@@ -112,9 +111,9 @@ The expected axes show up: Type II (multi-question composition) is 7–8 points 
 
 Input tokens grow from 3.0k at t0 to 4.4k by t5 — the system block (doc + instructions, ~2k tokens) is byte-stable across turns of one record but re-tokenised on every call. That's the case for prompt caching, on its own.
 
-### Dev measurement manifest
+### Prompt improvement experiments
 
-Append-only. Dev is the held-out measurement set; iteration is driven by **train** failure analysis between rows. Hard-capped at v2.
+Prompt improvement iterations were driven by **train** failure analysis between rows. Hard-capped at v2. Dev dataset was held-out.
 
 | Version | Seed | Per-turn | Per-conv | USD | Wall | Notes |
 |---|---|---|---|---|---|---|
@@ -122,7 +121,7 @@ Append-only. Dev is the held-out measurement set; iteration is driven by **train
 | v1 | 1002385739 | 82.7% (1229/1486) | 72.6% (305/420) | \$20.88 | 78 min | Train-side prompt iteration; **regressed -0.8pt on dev**. The train delta did not transfer — train and dev distributions diverge on the failure modes the iteration was tuned against. |
 | v2 | 1002385739 | n/a | n/a | n/a | n/a | Extended-thinking variant; **aborted** — Anthropic SDK rejects `thinking` blocks combined with forced single-tool selection. Documented rather than dropped; the fix is a tool-interface redesign (see [Future work](#future-work)). |
 
-The v0→v1 regression is itself a useful result. The iteration loop on train was real — Phase 2.5 added few-shot examples to teach the newer-minus-older convention, after train-side failure analysis. It just didn't generalise. That's the case the prompt-engineering literature warns about, and the dev manifest discipline is what surfaces it instead of letting it hide under a "we shipped v1" headline.
+The v0→v1 regression is itself a useful result. The iteration loop on train was real — Phase 2.5 added few-shot examples to teach the newer-minus-older convention, after train-side failure analysis. It just didn't generalise.
 
 ## Findings
 
@@ -132,7 +131,9 @@ This shapes the future-work list. Time spent on context summarisation, retrieval
 
 ## Error analysis
 
-Post-hoc reflection on dev failures. The clusters below informed the future-work list but did **not** drive design changes — the audit trail backs this. Train runs (n=50, n=100) carry `failures.md` and were the iteration substrate; dev runs do not. v1's prompt change came out of train-side analysis and then regressed on dev, exactly the train-vs-dev divergence the held-out discipline catches. v2 was an extended-thinking experiment, unrelated to clusters. Examples below are dev records, shown as final-state manifestation.
+Below is a post-hoc reflection on the failures present in the dev dataset.
+
+The clusters below informed the future-work list but did **not** drive design changes — the audit trail in `runs/` backs this. Train runs (n=50, n=100) carry `failures.md` and were the iteration substrate.
 
 ### Cluster 1 — Upstream cleaned-table / gold misalignment (data-side)
 
@@ -151,7 +152,7 @@ The cleaner deterministically maps parens → negative, faithful to one common 1
 ### Strengths
 
 - **Conditional accuracy reported as a headline metric, not just a slice.** Distinguishes cascade from degradation in one number. Most reports of this kind only report per-turn.
-- **Free-running eval** rather than teacher-forced — matches deployment, harder than the literature.
+- **Full-history replay** at each turn — the model's own prior predictions are replayed as conversation context, matching deployment.
 - **Sample sizes on every rate.** No "100% (n=3)" hidden in a row.
 - **Per-call audit trail.** Every prediction is reproducible from `transcripts.md`; failure analysis runs off real artefacts, not memory.
 - **Append-only dev manifest** with v0 / v1 / v2 visible — including the v1 regression and the v2 abort. Nothing is silently re-baselined.
