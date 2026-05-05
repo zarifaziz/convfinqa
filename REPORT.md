@@ -38,29 +38,40 @@ Forced `tool_choice` collapses output parsing to schema validation: the response
 
 A few non-obvious choices the dataset card drove: `turn_program` is treated as gold metadata, not a generation target (the DSL is paper-era; 2026 has structured outputs). Boolean (`yes`/`no`) golds are 4/1490 dev turns — easy to lose under a numeric-only metric, so they get a separate breakdown axis. `has_duplicate_columns` / `has_non_numeric_values` flags become breakdown axes rather than silent drops.
 
-The `inspect` subcommand replays one record's full dialogue against the same `AnswerService` path eval uses, so per-record reasoning is debuggable without spinning up a measurement run:
+An evaluation pass — `eval --split <split> [--n N] [--seed S] [--concurrency K]` — produces the run directory that everything downstream is graded on:
 
 ```mermaid
 sequenceDiagram
   participant U as user
-  participant CLI as inspect
+  participant CLI as eval
+  participant ES as EvaluationService
   participant Repo as JsonDatasetRepository
   participant AS as AnswerService
   participant LLM as AnthropicClient
-  U->>CLI: record_id, --split
-  CLI->>Repo: load_split(split)
-  Repo-->>CLI: ConvFinQARecord
-  CLI->>AS: answer_conversation(record)
-  loop each turn
-    AS->>LLM: messages + tool_choice: submit_answer
-    LLM-->>AS: tool_use(answer, calculation, reasoning)
+  participant FS as run_dir
+  U->>CLI: --split, --n, --seed, --concurrency
+  CLI->>ES: run(split, run_dir, n, seed, concurrency)
+  ES->>Repo: load_split(split)
+  Repo-->>ES: list[ConvFinQARecord]
+  loop each record (thread pool, K workers)
+    ES->>AS: answer_conversation(record)
+    loop each turn
+      AS->>LLM: messages + tool_choice: submit_answer
+      LLM-->>AS: tool_use(answer, calculation, reasoning)
+    end
+    AS-->>ES: list[AnswerCall]
+    loop each (call, gold)
+      ES->>ES: compare_answer(predicted, gold)
+    end
+    ES->>FS: append predictions.jsonl, transcripts.{jsonl,md}
   end
-  AS-->>CLI: list[AnswerCall]
-  loop each question, gold, call
-    CLI->>CLI: compare_answer(predicted, gold)
-    CLI-->>U: ✓/✗ · gold · calc · reasoning · tokens
-  end
+  ES->>ES: summarize(rows) → breakdown
+  ES->>FS: write summary.json
+  ES-->>CLI: EvalSummary
+  CLI-->>U: per-turn / per-conversation accuracy + cost
 ```
+
+The `inspect` subcommand follows the same `AnswerService` → `AnthropicClient` path on a single record without writing a run directory, for debugging per-turn reasoning without spinning up a measurement run.
 
 ## What changed from the paper
 
@@ -131,21 +142,79 @@ This shapes the future-work list. Time spent on context summarisation, retrieval
 
 ## Error analysis
 
-Below is a post-hoc reflection on the failures present in the dev dataset.
+A post-hoc reflection on the **246 failed turns out of 1490** on the v0 dev run. 
 
-The clusters below informed the future-work list but did **not** drive design changes — the audit trail in `runs/` backs this. Train runs (n=50, n=100) carry `failures.md` and were the iteration substrate.
+The clusters below informed the future-work list but did **not** drive design changes — the audit trail in `runs/` backs this. 
+
+Prompt iteration were made from analysing the training data: `runs/2026-05-04T13-10-30Z/failures.md` (n=100, 53 failures, 1580 lines), `runs/2026-05-04T09-03-38Z/failures.md` (n=50, 19 failures), `runs/2026-05-04T06-50-41Z/failures.md` (n=50, 21 failures). 
+
+Dev failure artefact: `runs/2026-05-04T06-35-00Z/failures.md` (used for the analysis below; not for prompt iteration).
+
+Examples are labelled `(dev)` or `(train)` so the audit trail is explicit. Failure cards quote the question, the cell or table excerpt, gold, prediction, and the failure mode in one place.
 
 ### Cluster 1 — Upstream cleaned-table / gold misalignment (data-side)
 
-The cleaned table and the gold answer occasionally disagree on which row corresponds to which year. Concrete: on `Double_ETR/2002/page_86.pdf` the cleaned table has `2005=540372, 2004=925005`, but gold treats `540372` as 2004 (confirmed by t3 gold `0.71179 = 384633 / 540372`). No question-side semantic cue lets the model recover this — *"what was the total in 2005?"* against a table that pins `2005=540372` admits exactly one answer. Unrecoverable from the model side.
+**Where it shows up:** rare but unrecoverable when it does. The cleaned table and the gold answer disagree on which row or column corresponds to which year, and no question-side semantic cue lets the model recover.
+
+> **Example: `Double_ETR/2002/page_86.pdf` t0–t4 (dev) — 5 lost turns from one root cause.**
+> - **Q (t0):** *"what was the total of annual long-term debt maturities ... for 2005?"*
+> - **Cleaned table:** pins `2005 = 540372`, `2004 = 925005`.
+> - **Gold for t0:** `925005` — gold treats `925005` as the 2005 row.
+> - **Predicted:** `540372` — model reads the table as written.
+> - **Confirmation:** t3 gold `0.71179 = 384633 / 540372` proves gold's mental row-mapping puts `540372` on 2004. Years are swapped between the table and the gold programs. No question-side disambiguator exists.
+
+**Recommended Fix:** quarantine flag for records where this fires. Surface them as a separate axis in the breakdown rather than charging them against model accuracy. Detection heuristic: replay the gold program against the rendered table; flag records where the program's referenced cells disagree with the table's row labels.
 
 ### Cluster 2 — Sign vs magnitude on financial cell conventions (model + prompt)
 
-The cleaner deterministically maps parens → negative, faithful to one common 10-K convention; the other (parens-as-display, with the question framing implying magnitude) is the model's job to resolve. Concrete: `Single_PM/2018/page_31.pdf-2` t0 — *"what was the weighted average discount rate for postretirement plans in 2018?"*, cell `-3.97`, gold `3.97`. `Double_PM/2015/page_127.pdf` t0 — column header `( losses ) earnings 2015`, cell `-9402`, question asks for "the losses", gold `9402`. The model returns the signed cell verbatim instead of resolving "is the question asking for a magnitude or a signed value?" A counter-pattern exists too (`Single_C/2010/page_223.pdf-3` t2: gold `-433`, model returns `433`), so the bias isn't "always signed" — it's "follow the cell or arithmetic without checking the question." Rules out a blanket "return magnitude" rule; motivates a structural prompt change that forces the magnitude-vs-signed decision before extraction.
+**Where it shows up:** **≥8.1% of dev failures (20/246, lower bound** — counts only exact `predicted == -gold` matches; partial-magnitude errors are missed). The cleaner deterministically maps parens → negative, faithful to one common 10-K convention; the other (parens-as-display, with the question framing implying magnitude) is the model's job to resolve.
+
+> **Example A: `Single_PM/2018/page_31.pdf-2` t0 (dev).**
+> - **Q:** *"what was the weighted average discount rate for postretirement plans in 2018?"*
+> - **Cell:** `-3.97`  ·  **Gold:** `3.97`  ·  **Predicted:** `-3.97`
+> - **Why it failed:** model returned the signed cell verbatim. Discount rates are reported in 10-Ks with display-side parens but interpreted as magnitudes; the question's framing ("the discount rate") implies a magnitude.
+
+> **Example B: `Single_IPG/2018/page_26.pdf-2` t5 (train run `2026-05-04T13-10-30Z`).**
+> - **Q:** *"and how much is that in percentage?"*
+> - **Calc:** `-2074 / 3824 * 100`  ·  **Gold:** `54.2364`  ·  **Predicted:** `-54.236`
+> - **Why it failed:** cascaded from t4, where the model picked the signed delta `-2074` instead of the magnitude `2074`. One sign decision propagates through both downstream turns.
+
+> **Counter-example: `Single_C/2010/page_223.pdf-3` t2 (dev).**
+> - **Gold:** `-433`  ·  **Predicted:** `433`
+> - **Why it matters:** rules out a blanket "return magnitude" rule. The bias isn't *"always signed"* — it's *"follow the cell or arithmetic without checking what the question is asking."*
+
+**Recommended Fix:** structural prompt change forcing an explicit magnitude-vs-signed decision before extraction, primed by parens-as-display vs parens-as-negative conventions. Not a rule list (`if discount-rate then flip` doesn't generalise); a structural reasoning step.
 
 ### Cluster 3 — Column / row selection on multi-column tables (renderer + prompt)
 
-`has_duplicate_columns=True` records score 67.2% (n=64), 18 points below the rest of dev. The model picks the wrong column or row when the markdown table has visually flat column boundaries — a rendering problem dressed up as a model problem. The fix vector is renderer-side first (HTML tables with explicit `<th scope="col">`, or row-major rendering with column repetition) before any prompt-side change. This cluster opens a future-work item the previous error analysis missed.
+**Where it shows up:** `has_duplicate_columns=True` records on dev score **67.2% (n=64)**, **18 points** below the rest of dev's 84.2%. **21 of 64 dup-col records fail** (33% within-slice vs ~16% baseline failure rate). Markdown's flat column boundaries provide weak disambiguation.
+
+> **Example: `Single_HWM/2016/page_40.pdf-1` t0 (dev).**
+> - **Q:** *"what is the high price in 2016?"*
+> - **Table:** rows include `2016 high (1)` *and* `2016 high (2)` — two `high` series on the same page (different reporting bases), each with `first/second/third/fourth/year` columns.
+> - **Gold:** `32.91` (= `2016 high (1) → third`)  ·  **Predicted:** `34.5` (= `2016 high (1) → year`, the natural read of "high price in 2016")
+> - **Why it failed:** the question is naturally read as a year-level statistic, but gold expects a specific quarter from a specific reporting series. The duplicate-column ambiguity gives the model no signal to pick the right one.
+
+**Recommended Fix:** renderer-side first — HTML tables with explicit `<th scope="col">`, or row-major rendering with column repetition — before any prompt-side change. The dup-col gap is a rendering problem dressed up as a model problem.
+
+### Cluster 4 — Downstream cascade from a single early error
+
+**Where it shows up:** **largest single bucket by lost-turn count.** **29 dev records** have ≥3 wrong turns with at least 3 consecutive losses, accounting for **109 of 246 dev failures (44%)**. Train n=100 mirrors this: **6 records / 25 lost turns / 47% of failures**. The root cause is always one of clusters 1–3, but cascade is where the loss *concentrates*.
+
+> **Example: `Single_AMT/2010/page_34.pdf-1` t0–t3 (dev) — 1 wrong cell pick → 3 lost turns.**
+>
+> | turn | Q | gold | predicted | calc |
+> |---|---|---|---|---|
+> | t0 | closing price as of 2/11/11? | `56.73` | `56.73` ✓ | `56.73` |
+> | t1 | high price for the quarter ended 12/31/10? | `53.14` | **`43.84`** ✗ | `43.84` |
+> | t2 | difference between these two prices? | `3.59` | `12.89` ✗ | `56.73 - 43.84` |
+> | t3 | growth rate during this time? | `0.06756` | `29.40` ✗ | `(56.73 - 43.84) / 43.84` |
+>
+> **Why it failed:** t1 picks the wrong row from a multi-row quarterly price table — a cluster-3-shaped error. t2 and t3 use the model's own (incorrect) prior answers, so the wrong number propagates. The model's arithmetic is *correct* at every step from t1 onwards; the chain's anchor is wrong.
+
+**Why this is its own cluster, not just compounding:** the conditional-accuracy chart shows `P(t_i correct | t_{i-1} correct)` flat at ~92%. That confirms the cascade isn't long-context degradation — it's a one-shot error whose downstream effect is amplified by full-history replay. The fix is upstream (cluster 1–3 fixes reduce cascade rate), but cascade is the right unit to measure the *cost* of those upstream errors.
+
+**Recommended Fix:** cascade rate is a function of cluster-1/2/3 fix rate. Direct mitigations (re-asking the model to verify a prior answer before reuse, surfacing prior-turn confidence) trade quality against latency — not the right early move when the upstream fixes are cheaper. Worth tracking as a downstream metric, not a primary lever.
 
 ## Strengths and limitations
 
@@ -179,6 +248,7 @@ Full-dev v0 actuals: 5.0M input + 269k output tokens, \$19.04, 72 min wall. The 
 4. **Quarantine flag for cluster-1 records.** If they account for a meaningful share of residual error, surface them as a separate axis in the breakdown rather than charging them against model accuracy. Flag-and-exclude is more honest than silently absorbing the loss.
 5. **Tighter `compare_answer` for boolean golds.** A few boolean records have non-string golds; the metric currently dispatches on `isinstance(gold, str)`.
 6. **`calculate(expression)` tool with a return loop** — only if arithmetic errors materially exceed extraction errors. Currently calc-consistency (model's reported answer matches eval of its own calculation string) appears high by eyeball; verify before adding tool surface.
+7. **Domain-expert commentary, then axial coding of the failures.** The cluster 1–4 taxonomy is open coding — I read ~50 failures and grouped what I saw. Next move: have a finance-literate reviewer write a couple of sentences per failure (what should have happened, why the model went wrong, any edge cases worth flagging), then embed those notes and cluster them. That turns the open codes into axial ones — categories grounded in expert reasoning instead of my reading, with sub-types I'd otherwise miss (cluster 2 likely splits into "discount-rate sign" vs "parens-as-display" with different fixes). Also gives a defensible frequency count for prioritising the fixes above; the current cluster sizes are eyeball estimates.
 
 ### If priorities shifted in production
 

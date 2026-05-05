@@ -1,0 +1,54 @@
+2026-05-04T16:50:41+10:00 | INFO     | src.cli.main:eval_:60 | run dir: /Users/zariftutero/Coding/personal/zarifaziz/runs/2026-05-04T06-50-41Z
+2026-05-04T16:50:41+10:00 | INFO     | src.services.evaluator:run:95 | sample seed: 1002385739
+2026-05-04T16:50:41+10:00 | INFO     | src.services.evaluator:run:106 | evaluating 50 record(s) (186 turns total) on split='train' concurrency=5
+2026-05-04T16:50:47+10:00 | INFO     | src.services.evaluator:_flush:128 | [1/50] Single_RE/2012/page_31.pdf-3 turns=2 correct=2/2
+2026-05-04T16:50:49+10:00 | INFO     | src.services.evaluator:_flush:128 | [2/50] Single_ADBE/2003/page_111.pdf-2 turns=2 correct=1/2
+2026-05-04T16:50:50+10:00 | INFO     | src.services.evaluator:_flush:128 | [3/50] Single_AMT/2014/page_64.pdf-1 turns=3 correct=3/3
+2026-05-04T16:50:53+10:00 | INFO     | src.services.evaluator:_flush:128 | [4/50] Single_HUM/2018/page_129.pdf-4 turns=4 correct=4/4
+2026-05-04T16:50:56+10:00 | INFO     | src.services.evaluator:_flush:128 | [5/50] Double_GPN/2017/page_91.pdf turns=2 correct=2/2
+2026-05-04T16:50:56+10:00 | INFO     | src.services.evaluator:_flush:128 | [6/50] Double_BLL/2006/page_108.pdf turns=2 correct=1/2
+2026-05-04T16:50:59+10:00 | INFO     | src.services.evaluator:_flush:128 | [7/50] Double_CB/2010/page_212.pdf turns=4 correct=4/4
+2026-05-04T16:51:00+10:00 | INFO     | src.services.evaluator:_flush:128 | [8/50] Single_LMT/2016/page_85.pdf-3 turns=4 correct=4/4
+2026-05-04T16:51:04+10:00 | INFO     | src.services.evaluator:_flush:128 | [9/50] Single_MAS/2012/page_92.pdf-1 turns=5 correct=5/5
+2026-05-04T16:51:05+10:00 | INFO     | src.services.evaluator:_flush:128 | [10/50] Single_AAPL/2015/page_56.pdf-3 turns=2 correct=2/2
+2026-05-04T16:51:06+10:00 | INFO     | src.services.evaluator:_flush:128 | [11/50] Single_WRK/2019/page_103.pdf-1 turns=4 correct=4/4
+2026-05-04T16:51:10+10:00 | INFO     | src.services.evaluator:_flush:128 | [12/50] Double_HIG/2008/page_113.pdf turns=2 correct=2/2
+2026-05-04T16:51:11+10:00 | INFO     | src.services.evaluator:_flush:128 | [13/50] Single_D/2002/page_39.pdf-1 turns=5 correct=4/5
+2026-05-04T16:51:11+10:00 | INFO     | src.services.evaluator:_flush:128 | [14/50] Single_PNC/2009/page_31.pdf-5 turns=4 correct=4/4
+2026-05-04T16:51:16+10:00 | INFO     | src.services.evaluator:_flush:128 | [15/50] Single_CAT/2017/page_113.pdf-3 turns=4 correct=4/4
+2026-05-04T16:51:17+10:00 | INFO     | src.services.evaluator:_flush:128 | [16/50] Single_CB/2010/page_212.pdf-3 turns=5 correct=5/5
+2026-05-04T16:51:23+10:00 | INFO     | src.services.evaluator:_flush:128 | [17/50] Single_ZBH/2007/page_80.pdf-1 turns=4 correct=4/4
+2026-05-04T16:51:23+10:00 | INFO     | src.services.evaluator:_flush:128 | [18/50] Double_VRTX/2005/page_112.pdf turns=2 correct=2/2
+2026-05-04T16:51:24+10:00 | INFO     | src.services.evaluator:_flush:128 | [19/50] Single_ABMD/2008/page_87.pdf-1 turns=5 correct=5/5
+2026-05-04T16:51:26+10:00 | INFO     | src.services.evaluator:_flush:128 | [20/50] Single_RSG/2012/page_145.pdf-1 turns=4 correct=3/4
+2026-05-04T16:51:27+10:00 | INFO     | src.services.evaluator:_flush:128 | [21/50] Single_APTV/2018/page_36.pdf-2 turns=6 correct=6/6
+2026-05-04T16:51:32+10:00 | INFO     | src.services.evaluator:_flush:128 | [22/50] Double_ETR/2004/page_86.pdf turns=3 correct=3/3
+2026-05-04T16:51:36+10:00 | INFO     | src.services.evaluator:_flush:128 | [23/50] Single_ABMD/2003/page_27.pdf-4 turns=5 correct=5/5
+2026-05-04T16:51:38+10:00 | INFO     | src.services.evaluator:_flush:128 | [24/50] Single_ZBH/2004/page_68.pdf-1 turns=4 correct=4/4
+2026-05-04T16:51:39+10:00 | INFO     | src.services.evaluator:_flush:128 | [25/50] Double_STT/2008/page_116.pdf turns=6 correct=3/6
+2026-05-04T16:51:40+10:00 | INFO     | src.services.evaluator:_flush:128 | [26/50] Double_BLK/2017/page_35.pdf turns=5 correct=5/5
+2026-05-04T16:51:43+10:00 | INFO     | src.services.evaluator:_flush:128 | [27/50] Single_LMT/2012/page_72.pdf-1 turns=3 correct=3/3
+2026-05-04T16:51:44+10:00 | INFO     | src.services.evaluator:_flush:128 | [28/50] Single_UNP/2014/page_24.pdf-4 turns=5 correct=5/5
+2026-05-04T16:51:47+10:00 | INFO     | src.services.evaluator:_flush:128 | [29/50] Single_ORLY/2006/page_40.pdf-2 turns=2 correct=1/2
+2026-05-04T16:51:51+10:00 | INFO     | src.services.evaluator:_flush:128 | [30/50] Double_CDW/2015/page_54.pdf turns=5 correct=4/5
+2026-05-04T16:51:53+10:00 | INFO     | src.services.evaluator:_flush:128 | [31/50] Single_RE/2016/page_40.pdf-4 turns=3 correct=3/3
+2026-05-04T16:51:55+10:00 | INFO     | src.services.evaluator:_flush:128 | [32/50] Double_IPG/2007/page_97.pdf turns=4 correct=2/4
+2026-05-04T16:51:57+10:00 | INFO     | src.services.evaluator:_flush:128 | [33/50] Double_SWKS/2011/page_112.pdf turns=4 correct=4/4
+2026-05-04T16:51:58+10:00 | INFO     | src.services.evaluator:_flush:128 | [34/50] Double_AWK/2013/page_123.pdf turns=6 correct=1/6
+2026-05-04T16:52:02+10:00 | INFO     | src.services.evaluator:_flush:128 | [35/50] Single_C/2015/page_314.pdf-3 turns=4 correct=4/4
+2026-05-04T16:52:04+10:00 | INFO     | src.services.evaluator:_flush:128 | [36/50] Double_CAG/2007/page_79.pdf turns=2 correct=2/2
+2026-05-04T16:52:04+10:00 | INFO     | src.services.evaluator:_flush:128 | [37/50] Double_AOS/2016/page_24.pdf turns=4 correct=4/4
+2026-05-04T16:52:08+10:00 | INFO     | src.services.evaluator:_flush:128 | [38/50] Single_HOLX/2008/page_128.pdf-2 turns=4 correct=4/4
+2026-05-04T16:52:08+10:00 | INFO     | src.services.evaluator:_flush:128 | [39/50] Single_KIM/2008/page_126.pdf-1 turns=2 correct=2/2
+2026-05-04T16:52:09+10:00 | WARNING  | src.tools.submit_answer:_coerce_unknown:38 | sign_convention out of enum: 'ratio' → coerced to 'signed'
+2026-05-04T16:52:09+10:00 | INFO     | src.services.evaluator:_flush:128 | [40/50] Single_ETR/2013/page_14.pdf-2 turns=2 correct=2/2
+2026-05-04T16:52:12+10:00 | INFO     | src.services.evaluator:_flush:128 | [41/50] Single_STT/2013/page_175.pdf-1 turns=3 correct=3/3
+2026-05-04T16:52:14+10:00 | INFO     | src.services.evaluator:_flush:128 | [42/50] Double_SWKS/2008/page_105.pdf turns=6 correct=6/6
+2026-05-04T16:52:14+10:00 | INFO     | src.services.evaluator:_flush:128 | [43/50] Single_UPS/2016/page_34.pdf-2 turns=2 correct=2/2
+2026-05-04T16:52:19+10:00 | INFO     | src.services.evaluator:_flush:128 | [44/50] Double_JPM/2013/page_158.pdf turns=4 correct=4/4
+2026-05-04T16:52:20+10:00 | INFO     | src.services.evaluator:_flush:128 | [45/50] Double_HIG/2012/page_132.pdf turns=2 correct=2/2
+2026-05-04T16:52:21+10:00 | INFO     | src.services.evaluator:_flush:128 | [46/50] Double_ETFC/2013/page_159.pdf turns=2 correct=2/2
+2026-05-04T16:52:23+10:00 | INFO     | src.services.evaluator:_flush:128 | [47/50] Double_JKHY/2008/page_30.pdf turns=4 correct=4/4
+2026-05-04T16:52:25+10:00 | INFO     | src.services.evaluator:_flush:128 | [48/50] Single_IPG/2018/page_26.pdf-2 turns=6 correct=1/6
+2026-05-04T16:52:29+10:00 | INFO     | src.services.evaluator:_flush:128 | [49/50] Single_ADI/2010/page_82.pdf-1 turns=4 correct=4/4
+2026-05-04T16:52:35+10:00 | INFO     | src.services.evaluator:_flush:128 | [50/50] Single_PPG/2011/page_28.pdf-2 turns=5 correct=5/5

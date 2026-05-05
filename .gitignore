@@ -20,5 +20,13 @@ __pycache__/
 .claude/
 uv.lock
 plans
-runs/
+# Runs: ignore everything except the runs cited in REPORT.md
+runs/*
+!runs/2026-05-04T06-35-00Z/
+!runs/2026-05-04T12-48-44Z/
+!runs/2026-05-04T13-10-30Z/
+!runs/2026-05-04T09-03-38Z/
+!runs/2026-05-04T06-50-41Z/
+# Within tracked runs, skip the machine-readable duplicate of transcripts.md
+runs/*/transcripts.jsonl
 docs/decisions.md
