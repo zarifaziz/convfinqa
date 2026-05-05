@@ -14,18 +14,18 @@ Optimised for **quality > cost ≫ speed**. Latency is unbudgeted. Cost was capp
 
 ```mermaid
 flowchart LR
-  ds[(dev split JSON)] --> repo[JsonDatasetRepository]
-  repo --> render[render_doc<br/>markdown table + narrative]
+  ds[("dev split JSON")] --> repo[JsonDatasetRepository]
+  repo --> render["render_doc<br/>markdown table + narrative"]
   render --> sys[system prompt]
-  hist[prior turns<br/>tool_use ↔ tool_result] --> msgs[messages]
+  hist["prior turns<br/>tool_use ↔ tool_result"] --> msgs[messages]
   q[next question] --> msgs
   sys --> ans[AnswerService]
   msgs --> ans
-  ans --> claude[[AnthropicClient<br/>claude-sonnet-4-6<br/>tool_choice: submit_answer]]
-  claude --> parse[parse_response<br/>Pydantic validate]
-  parse --> cmp[compare_answer<br/>hybrid tolerance]
+  ans --> claude[["AnthropicClient<br/>claude-sonnet-4-6<br/>tool_choice: submit_answer"]]
+  claude --> parse["parse_response<br/>Pydantic validate"]
+  parse --> cmp["compare_answer<br/>hybrid tolerance"]
   gold[(gold)] --> cmp
-  cmp --> sum[summary.json<br/>predictions.jsonl<br/>transcripts.md]
+  cmp --> sum["summary.json<br/>predictions.jsonl<br/>transcripts.md"]
 ```
 
 End-to-end pipeline: load → render → prompt → forced tool-use → parse → score. One LLM provider (Anthropic, `claude-sonnet-4-6`), one tool (`submit_answer`), full conversation replay. The document goes only in the system prompt; prior turns replay as `(user, q) → (assistant, tool_use) → (user, [tool_result, next_question])` triples. No fine-tuning, no custom retrieval, no agent loop. The 2022 paper's DSL is treated as eval metadata, not a generation target.
@@ -41,7 +41,7 @@ The `inspect` subcommand replays one record's full dialogue against the same `An
 ```mermaid
 sequenceDiagram
   participant U as user
-  participant CLI as main inspect &lt;record_id&gt;
+  participant CLI as inspect
   participant Repo as JsonDatasetRepository
   participant AS as AnswerService
   participant LLM as AnthropicClient
@@ -54,7 +54,7 @@ sequenceDiagram
     LLM-->>AS: tool_use(answer, calculation, reasoning)
   end
   AS-->>CLI: list[AnswerCall]
-  loop each (question, gold, call)
+  loop each question, gold, call
     CLI->>CLI: compare_answer(predicted, gold)
     CLI-->>U: ✓/✗ · gold · calc · reasoning · tokens
   end

@@ -15,7 +15,7 @@ __pycache__/
 .DS_Store
 
 .*cache
-
+.vscode
 *.local.md
 .claude/
 uv.lock
