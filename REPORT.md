@@ -75,7 +75,7 @@ The `inspect` subcommand follows the same `AnswerService` → `AnthropicClient` 
 
 ## What changed from the paper
 
-The 2022 paper is the obvious baseline; the assignment explicitly rules out blindly reimplementing it with an updated model. Concrete deltas:
+The 2022 paper is the obvious baseline; naively reimplementing its pipeline with an updated model misses the point. Concrete deltas:
 
 | Paper (2022) | This submission | Why |
 |---|---|---|

@@ -110,7 +110,7 @@ class ConvFinQARecord(BaseModel):
     id: str = Field(description="The id of the record")
     doc: Document = Field(description="The document")
     dialogue: Dialogue = Field(description="The conversational dialogue")
-    features: Features = Field(description="The features of the record, created by Tomoro to help you understand the data")
+    features: Features = Field(description="The features of the record")
 
 
 class Document(BaseModel):
