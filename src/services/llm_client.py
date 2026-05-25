@@ -2,7 +2,7 @@
 
 from typing import Any, Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LLMCallResult(BaseModel):
@@ -13,6 +13,9 @@ class LLMCallResult(BaseModel):
     raw_response: dict[str, Any]
     tokens_in: int
     tokens_out: int
+    # All messages produced by the agentic loop for this turn (calculator calls +
+    # submit_answer block). Used to replay conversations in subsequent turns.
+    assistant_exchange: list[dict[str, Any]] = Field(default_factory=list)
 
 
 @runtime_checkable

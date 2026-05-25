@@ -26,14 +26,30 @@ class _FakeLLMClient:
             raise RuntimeError("FakeLLMClient: no more canned responses")
         parsed = self._queue.popleft()
         idx = len(self.calls)
+        tool_use_id = f"tool_{idx}"
         self.calls.append(
             {"system": system, "messages": messages, "tool_model": tool_model}
         )
+        # Simulate what the real agentic loop returns: an assistant_exchange
+        # containing just the submit_answer block (no calculator calls in the fake).
+        assistant_exchange = [
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": tool_use_id,
+                        "name": "submit_answer",
+                        "input": parsed.model_dump(),
+                    }
+                ],
+            }
+        ]
         raw_response = {
             "content": [
                 {
                     "type": "tool_use",
-                    "id": f"tool_{idx}",
+                    "id": tool_use_id,
                     "name": "submit_answer",
                     "input": parsed.model_dump(),
                 }
@@ -41,19 +57,18 @@ class _FakeLLMClient:
         }
         return LLMCallResult(
             parsed=parsed,
-            tool_use_id=f"tool_{idx}",
+            tool_use_id=tool_use_id,
             raw_response=raw_response,
             tokens_in=0,
             tokens_out=0,
+            assistant_exchange=assistant_exchange,
         )
 
 
 def test_answer_single_passes_question_and_returns_predicted_answer() -> None:
     canned = SubmitAnswer(
         reasoning="206588 - 181001 = 25587",
-        calculation="206588 - 181001",
-        sign_convention="signed",
-        answer="25587",
+        answer="25587.0",
         unit="raw",
     )
     fake = _FakeLLMClient(canned=[canned])
@@ -70,9 +85,7 @@ def test_answer_single_passes_question_and_returns_predicted_answer() -> None:
 
     assert result.predicted == PredictedAnswer(
         reasoning="206588 - 181001 = 25587",
-        calculation="206588 - 181001",
-        sign_convention="signed",
-        answer="25587",
+        answer="25587.0",
         unit="raw",
     )
     assert result.messages == [{"role": "user", "content": question}]
@@ -107,13 +120,7 @@ def _record(questions: list[str], golds: list[float]) -> ConvFinQARecord:
 
 
 def _canned(answer: str) -> SubmitAnswer:
-    return SubmitAnswer(
-        reasoning="r",
-        calculation=answer,
-        sign_convention="signed",
-        answer=answer,
-        unit="raw",
-    )
+    return SubmitAnswer(reasoning="r", answer=answer, unit="raw")
 
 
 def test_answer_conversation_replays_prior_turns() -> None:
@@ -126,8 +133,10 @@ def test_answer_conversation_replays_prior_turns() -> None:
     assert len(calls) == 3
     assert len(fake.calls) == 3
 
+    # Turn 0: just the opening question
     assert fake.calls[0]["messages"] == [{"role": "user", "content": "Q0"}]
 
+    # Turn 1: Q0 + turn 0's full exchange + tool_result ack + Q1
     assert fake.calls[1]["messages"] == [
         {"role": "user", "content": "Q0"},
         {
