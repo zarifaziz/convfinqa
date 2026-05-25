@@ -1,6 +1,6 @@
 # ConvFinQA: Conversational Financial QA with Frontier LLMs
 
-> A single system prompt, one tool definition, and Claude Sonnet 4.6 score **83.5%** per-turn on the ConvFinQA dev split — **+14.6 points** over the 2022 SOTA pipeline (FinQANet, 68.9%), with no retriever, no DSL, and no fine-tuning.
+> A single system prompt, one tool definition, and Claude Sonnet 4.6 score **83.5%** per-turn on the ConvFinQA dev split — **+14.6 points** over the 2022 SOTA pipeline (FinQANet, 68.9%) and only **5.9 points** below human expert performance (89.4%) — with no retriever, no DSL, and no fine-tuning.
 
 ## TL;DR
 
