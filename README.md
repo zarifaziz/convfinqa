@@ -6,7 +6,7 @@
 
 [ConvFinQA](https://github.com/czyssrs/ConvFinQA) (Chen et al., 2022) is a benchmark of multi-turn question answering over financial documents — narrative text plus tables, with conversational follow-ups that depend on earlier turns. The 2022 state of the art reached it with a custom retriever, a domain-specific-language generator, and a fine-tuned encoder.
 
-This repo replaces that whole pipeline with one Claude call per turn: render the document into the system prompt, replay the full conversation history, and force a typed `submit_answer` tool. On the 421-record dev split it scores **83.5% per-turn** and **73.6% per-conversation** for **$19.04** and 72 minutes of wall time. The complexity in the original paper was scaffolding for weaker models.
+This repo replaces that whole pipeline with one Claude call per turn: render the document into the system prompt, replay the full conversation history, and force a typed `submit_answer` tool. On the 421-record dev split it scores **83.5% per-turn** and **73.6% per-conversation** — 5.9 points below human expert performance and 14.6 above the 2022 SOTA — for **$19.04** and 72 minutes of wall time. The complexity in the original paper was scaffolding for weaker models.
 
 ## Background
 
@@ -36,6 +36,8 @@ Dev split (421 records, 1490 turns), `claude-sonnet-4-6`, seed `1002385739`:
 | Type I (single composition) | 85.7% | — |
 | Type II (multi-question) | 78.1% | — |
 | Cost / wall time | $19.04 · 72 min | — |
+
+83.5% sits 5.9 points below the human expert ceiling and 14.6 points above the 2022 SOTA — the full range in one API call.
 
 Eval setups differ — this run replays the model's *own* prior predictions as history (deployment-realistic), whereas the paper's exact protocol isn't fully specified — so the headline isn't a perfectly controlled comparison. See [REPORT.md](REPORT.md#evaluation-methodology) for the caveats.
 
