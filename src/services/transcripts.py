@@ -35,7 +35,6 @@ def write_transcript_md(path: Path, line: dict[str, Any]) -> None:
 ## Response — tool call ({tool_call.get("name")!r})
 
 - **reasoning:** {parsed.get("reasoning")}
-- **calculation:** `{parsed.get("calculation")}`
 - **answer:** `{parsed.get("answer")}`
 - **unit:** `{parsed.get("unit")}`
 

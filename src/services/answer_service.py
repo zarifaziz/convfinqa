@@ -49,6 +49,7 @@ class AnswerService:
             question=question,
             tool_use_id=result.tool_use_id,
             predicted=predicted,
+            assistant_exchange=result.assistant_exchange,
         )
         call = AnswerCall(
             predicted=predicted,

@@ -25,8 +25,6 @@ class EvalRow(BaseModel):
     question: str
     predicted_answer: str
     predicted_unit: str
-    predicted_sign_convention: str
-    predicted_calculation: str
     predicted_reasoning: str
     gold: float | str
     correct: bool
@@ -208,8 +206,6 @@ class EvaluationService:
                     question=question,
                     predicted_answer=call.predicted.answer,
                     predicted_unit=call.predicted.unit,
-                    predicted_sign_convention=call.predicted.sign_convention,
-                    predicted_calculation=call.predicted.calculation,
                     predicted_reasoning=call.predicted.reasoning,
                     gold=gold,
                     correct=correct,
